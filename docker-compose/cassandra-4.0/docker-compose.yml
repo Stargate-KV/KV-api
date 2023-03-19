@@ -1,4 +1,4 @@
-version: '1'
+version: '2'
 
 services:
   cassandra-1:
@@ -61,7 +61,7 @@ services:
     networks:
       - stargate
     ports:
-      - "8082:8082"
+      - "8083:8083"
     mem_limit: 2G
     environment:
       - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator

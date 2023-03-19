@@ -9,7 +9,7 @@
   <properties>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus</quarkus.platform.group-id>
-    <quarkus.platform.version>2.16.4.Final</quarkus.platform.version>
+    <quarkus.platform.version>2.11.2.Final</quarkus.platform.version>
     <surefire-plugin.version>3.0.0-M7</surefire-plugin.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <failsafe.useModulePath>false</failsafe.useModulePath>
@@ -19,6 +19,8 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.release>17</maven.compiler.release>
+    <stargate.version>2.0.0</stargate.version>
+
   </properties>
 
   <dependencyManagement>
@@ -51,6 +53,11 @@
       <groupId>io.rest-assured</groupId>
       <artifactId>rest-assured</artifactId>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.stargate</groupId>
+      <artifactId>sgv2-quarkus-common</artifactId>
+      <version>${stargate.version}</version>
     </dependency>
   </dependencies>
   <build>

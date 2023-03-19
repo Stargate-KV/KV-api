@@ -3,7 +3,7 @@
 # Default to INFO as root log level
 LOGLEVEL=INFO
 SGTAG=v2
-PROJTAG=v1.0.0
+PROJTAG=v1.0.0-SNAPSHOT
 
 while getopts "lqr:t:" opt; do
   case $opt in
@@ -59,4 +59,4 @@ docker-compose up -d cassandra-3
 
 docker-compose up -d coordinator
 (docker-compose logs -f coordinator &) | grep -q "Finished starting bundles"
-docker-compose up -d dynamoapi
+docker-compose up -d kvstoreapi
