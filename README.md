@@ -1,12 +1,28 @@
-Quarkus guide: https://quarkus.io/guides/rest-json
+### 运行cassandra + coordinator + kvapi
 
-+ 添加文件以后：`./mvnw com.spotify.fmt:fmt-maven-plugin:format`
+进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
+
+运行`./start_cas_40.sh `
+
+docker 开启：
+
++ Cassandra node: cass40-stargate_cassandra-1_1(name)
++ Cassandra node: cass40-stargate_cassandra-2_1
++ Cassandra node: cass40-stargate_cassandra-3_1
++ Dynamo DB API: cass40-stargate_dynamoapi_1(port: 8082)
++ Stargate Coordinator node: cass40-stargate_coordinator_1(port: 8081 authentication, port: 9042 clash)
+
+全部关闭：docker-compose down
+
+### 仅修改kvapi如何重启
+
+修改文件后在`~/rest-jet-value-store/` 下运行:
+
++ format：`./mvnw com.spotify.fmt:fmt-maven-plugin:format`
 
 + build image: `sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083`
 
-+ 开启Cassandra，cordinator node，和kvstoreapi: `./start_cass_40.sh`
-
-+ 更改kvstoreapi，重新build：
++ 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 
   + `docker down kvstoreapi`
 
@@ -14,20 +30,21 @@ Quarkus guide: https://quarkus.io/guides/rest-json
 
     `export PROJTAG=v1.0.0-SNAPSHOT`
 
-  +  `docker-compose up kvstoreapi`
+  + `docker-compose up kvstoreapi`
 
-+ 全部关闭`docker-compose down`
+### CQL 测试语法
 
-只运行dynomoDB：
++ 开启cqlsh：`docker exec -it cass40-stargate_cassandra-1_1 cqlsh`
++ 看keyspaces: `describe keyspaces`
++ 看table: `SELECT * FROM "kvdb0"."kvtable"`
 
-+ `docker run -p 8083:8083 stargate-cmu/key-value-store:v1.0.0-SNAPSHOT`
+### Docker 语法
 
-+ Cql command: 
-  + 删除某column：`ALTER TABLE "0".kvstore DROP cassandra;`
-  + 查看某keyspace: `SELECT * FROM system_schema.columns WHERE keyspace_name = '0' AND table_name = 'kvstore';`
-  + 查看所有keyspcae: `describe keyspaces`
++ 查看docker image: `docker images / docker image ls`
++ 查看正在运行的docker containe：`docker container ls`
++ 查看某container的port: `docker port <container-name>` 
 
-http command: 
+### HTTP 测试
 
 ```
 authentication:
@@ -40,61 +57,70 @@ curl -X 'POST' \
   "secret": "cassandra"
 }'
 
+// create db
 curl -X 'POST' \
   'http://localhost:8083/kvstore/v1/databases' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 557c7929-da7b-40ea-8d41-93adf6ec85a5'
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd'
 
+// delete db
+curl -X 'DELETE' \
+  'http://localhost:8083/kvstore/v1/0' \
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json'
+
+// put kv
 curl -X 'PUT' \
   'http://localhost:8083/kvstore/v1/0' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 557c7929-da7b-40ea-8d41-93adf6ec85a5' \
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
   -d '{
   "key": "cassandra",
   "value": "cassandra"
 }'
 
+// update kv
 curl -X 'PATCH' \
-  'http://localhost:8083/kvstore/v1/2' \
+  'http://localhost:8083/kvstore/v1/0' \
   -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
   -H 'content-type: application/json' \
   -d '{
     "key": "cassandra",
     "value":  "abcde"
 }'
 
+// get v
 curl -X 'GET' \
   'http://localhost:8083/kvstore/v1/0' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 557c7929-da7b-40ea-8d41-93adf6ec85a5' \
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
   -d '{
-    "key": "cassandra2"
+    "key": "cassandra"
 }'
 
-// not ok
+// delete kv
 curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/3/key' \
+  'http://localhost:8083/kvstore/v1/0/key' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
   -d '{
-  "key": "cassandra",
-  "value": "cassandra"
+  "key": "cassandra"
 }'
 ```
 
 + cassandra存储原理(简)：
-  + database = keyspace -> only one table named "kvstore", column "partition_key"
-  + Each key = column name
-  + each value = only one row in the corresponding column
+  + user create DB: new keyspace named **kvdb{db_id}** (db_id start from 0)
+  + Only one table in each keyspace named **kvtable**
+  + Two text columns: key(partition key), value
 + Done:
-  + docker-compose shell完成
-  + authentication认证完成
-  + create, put, get完成
+  + Authentication, API implementation
 + Todo:
-  + in-memory和cassandra不同步
-  + Exception
-  + Response type db_response, 需要关联cassandra query response
-  + delete key, delete db, update feature
+  + Response and Exception Format
+  + Caching layer implementation
+  + Replication Model implementation

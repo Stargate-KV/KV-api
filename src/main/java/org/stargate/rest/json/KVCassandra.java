@@ -22,13 +22,12 @@ import io.stargate.sgv2.api.common.cql.builder.Predicate;
 public class KVCassandra {
     @Inject
     StargateBridgeClient bridge;
-    private static final String TABLENAME = "kvstore";
+    private static final String TABLENAME = "kvtable";
 
-    public Response createKeyspace(int db_id) {
+    public Response createKeyspace(String keyspace_name) {
         QueryOuterClass.Query query = new QueryBuilder()
                 .create()
-                // convert db_id to string and use it as keyspace name
-                .keyspace(Integer.toString(db_id))
+                .keyspace(keyspace_name)
                 .ifNotExists()
                 .withReplication(Replication.simpleStrategy(1))
                 .build();
@@ -38,21 +37,19 @@ public class KVCassandra {
             // FIX: handle exception
             throw new RuntimeException(ex);
         }
-        final Map<String, Object> responsePayload = Collections.singletonMap("name", Integer.toString(db_id));
-        createTable(Integer.toString(db_id));
+        final Map<String, Object> responsePayload = Collections.singletonMap("name", keyspace_name);
+        createTable(keyspace_name);
         return Response.status(Response.Status.CREATED).entity(responsePayload).build();
     }
 
     public void createTable(String keyspace_name) {
         List<Column> columns = new ArrayList<>();
-        // build a partition key column
-        ImmutableColumn.Builder column = ImmutableColumn.builder().name("partition_key").type("text");
-        column.kind(Column.Kind.PARTITION_KEY);
-        columns.add(column.build());
-        // build a string type column named "kv_string"
-        // ImmutableColumn.Builder column =
-        // ImmutableColumn.builder().name(COLNAME).type("text");
-        // columns.add(column.build());
+        // build a partition key column and a value column
+        ImmutableColumn.Builder key_column = ImmutableColumn.builder().name("key").type("text");
+        key_column.kind(Column.Kind.PARTITION_KEY);
+        ImmutableColumn.Builder val_column = ImmutableColumn.builder().name("value").type("text");
+        columns.add(key_column.build());
+        columns.add(val_column.build());
         QueryOuterClass.Query query = new QueryBuilder()
                 .create()
                 .table(keyspace_name, TABLENAME)
@@ -68,27 +65,11 @@ public class KVCassandra {
     }
 
     public void putKeyVal(String keyspace_name, String key, String value) {
-        // add a column named key in the table and insert value
-        ImmutableColumn.Builder column = ImmutableColumn.builder().name(key).type("text");
-        // add the column to the table
-        // if table TABLENAME does not exist, create it
-        QueryOuterClass.Query query = new QueryBuilder()
-                .alter()
-                .table(keyspace_name, TABLENAME)
-                .addColumn(column.build())
-                .build();
-        try {
-            bridge.executeQuery(query);
-        } catch (Exception ex) {
-            // FIX: handle exception
-            throw new RuntimeException(ex);
-        }
-
         // insert the value into the table
-        query = new QueryBuilder()
+        QueryOuterClass.Query query = new QueryBuilder()
                 .insertInto(keyspace_name, TABLENAME)
-                .value("partition_key", QueryOuterClass.Value.newBuilder().setString("default").build())
-                .value(key, QueryOuterClass.Value.newBuilder().setString(value).build())
+                .value("key", QueryOuterClass.Value.newBuilder().setString(key).build())
+                .value("value", QueryOuterClass.Value.newBuilder().setString(value).build())
                 .build();
         try {
             bridge.executeQuery(query);
@@ -99,13 +80,14 @@ public class KVCassandra {
     }
 
     public String getVal(String keyspace_name, String key) {
-        String col_name = key;
-        // select the column named key from the table and get the first row
+        // select the value from the table where key = key
         QueryOuterClass.Query query = new QueryBuilder()
                 .select()
-                .column(col_name)
+                .column("value")
                 .from(keyspace_name, TABLENAME)
+                .where("key", Predicate.EQ, QueryOuterClass.Value.newBuilder().setString(key).build())
                 .build();
+
         QueryOuterClass.Response response;
 
         try {
@@ -119,6 +101,55 @@ public class KVCassandra {
         // get the value from the row
         String value = row.getValues(0).getString();
         return value;
+    }
+
+    public Response updateVal(String keyspace_name, String key, String value) {
+        // update the value in the table where key = key
+        QueryOuterClass.Query query = new QueryBuilder()
+                .update(keyspace_name, TABLENAME)
+                .value("value", QueryOuterClass.Value.newBuilder().setString(value).build())
+                .where("key", Predicate.EQ, QueryOuterClass.Value.newBuilder().setString(key).build())
+                .build();
+        try {
+            bridge.executeQuery(query);
+        } catch (Exception ex) {
+            // FIX: handle exception
+            throw new RuntimeException(ex);
+        }
+        final Map<String, Object> responsePayload = Collections.singletonMap("name", keyspace_name);
+        return Response.status(Response.Status.OK).entity(responsePayload).build();
+    }
+
+    public Response deleteKey(String keyspace_name, String key) {
+        // delete the row from the table where key = key
+        QueryOuterClass.Query query = new QueryBuilder()
+                .delete()
+                .from(keyspace_name, TABLENAME)
+                .where("key", Predicate.EQ, QueryOuterClass.Value.newBuilder().setString(key).build())
+                .build();
+        try {
+            bridge.executeQuery(query);
+        } catch (Exception ex) {
+            // FIX: handle exception
+            throw new RuntimeException(ex);
+        }
+        final Map<String, Object> responsePayload = Collections.singletonMap("name", keyspace_name);
+        return Response.status(Response.Status.OK).entity(responsePayload).build();
+    }
+
+    public Response deleteKeyspace(String keyspace_name) {
+        QueryOuterClass.Query query = new QueryBuilder()
+                .drop()
+                .keyspace(keyspace_name)
+                .build();
+        try {
+            bridge.executeQuery(query);
+        } catch (Exception ex) {
+            // FIX: handle exception
+            throw new RuntimeException(ex);
+        }
+        final Map<String, Object> responsePayload = Collections.singletonMap("name", keyspace_name);
+        return Response.status(Response.Status.OK).entity(responsePayload).build();
     }
 }
 
