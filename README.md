@@ -1,5 +1,7 @@
 ### 运行cassandra + coordinator + kvapi
 
+第一次要先build docker image(参考下面的build image)
+
 进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
 
 运行`./start_cas_40.sh `
@@ -24,7 +26,7 @@ docker 开启：
 
 + 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 
-  + `docker down kvstoreapi`
+  + `docker stop kvstoreapi`
 
   + `export SGTAG=v2`
 
@@ -47,7 +49,7 @@ docker 开启：
 ### HTTP 测试
 
 ```
-authentication:
+//get token 
 curl -X 'POST' \
   'http://localhost:8081/v1/auth/token/generate' \
   -H 'accept: application/json' \
@@ -62,53 +64,90 @@ curl -X 'POST' \
   'http://localhost:8083/kvstore/v1/databases' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd'
+  -H 'X-Cassandra-Token: 15e6ec23-4e03-4139-9d42-7baeb5d1f959' \
+  -d '{
+  "db_name": "mydb"
+}'
+201: The database {db_name}  has been created successfully.
+409: The database {db_name} already exists.
+400: The database name is invalid.
 
 // delete db
 curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/0' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
+  'http://localhost:8083/kvstore/v1/mydb' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
   -H 'accept: application/json' \
   -H 'content-type: application/json'
+204: The database {db_name} has been deleted successfully.
+404: The database name is invalid. or The database {db_name} does not exist.
+
+// create table
+curl -X 'POST' \
+  'http://localhost:8083/kvstore/v1/databases/mydb/tables' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: 15e6ec23-4e03-4139-9d42-7baeb5d1f959' \
+  -d '{
+  "table_name": "mytable"
+}'
+
+// delete table
+curl -X 'POST' \
+  'http://localhost:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
+
+// list databases
+curl -X 'GET' \
+  'http://localhost:8083/kvstore/v1/databases' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
+
+// list tables
+curl -X 'GET' \
+  'http://localhost:8083/kvstore/v1/mydb/tables' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
+
 
 // put kv
 curl -X 'PUT' \
-  'http://localhost:8083/kvstore/v1/0' \
+  'http://localhost:8083/kvstore/v1/mydb/mytable' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
   -d '{
   "key": "cassandra",
   "value": "cassandra"
 }'
 
+// get v
+curl -X 'GET' \
+  'http://localhost:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
+  -d '{
+    "key": "cassandra"
+}'
+
 // update kv
 curl -X 'PATCH' \
-  'http://localhost:8083/kvstore/v1/0' \
+  'http://localhost:8083/kvstore/v1/mydb/mytable' \
   -H 'accept: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
   -H 'content-type: application/json' \
   -d '{
     "key": "cassandra",
     "value":  "abcde"
 }'
 
-// get v
-curl -X 'GET' \
-  'http://localhost:8083/kvstore/v1/0' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
-  -d '{
-    "key": "cassandra"
-}'
-
-// delete kv
 curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/0/key' \
+  'http://localhost:8083/kvstore/v1/mydb/key' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
+  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
   -d '{
   "key": "cassandra"
 }'
