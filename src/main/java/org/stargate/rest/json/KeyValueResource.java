@@ -32,126 +32,184 @@ public class KeyValueResource {
   ObjectMapper objectMapper = new ObjectMapper();
 
   public KeyValueResource() {
-
   }
 
   // create and delete databases
+  /**
+   * @param db_name_json
+   * @return
+   * @throws KvstoreException
+   * @throws JsonProcessingException
+   */
   @POST
   @Path("databases")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public db_response createDB(String db_name_json) throws KvstoreException, JsonProcessingException {
+  public KVResponse createDB(String db_name_json) throws KvstoreException, JsonProcessingException {
     JsonNode jsonNode = objectMapper.readTree(db_name_json);
     String db_name = jsonNode.get("db_name").asText();
-    kvcassandra.createKeyspace(db_name);
-    return new db_response(db_name);
+    KVResponse resonse = kvcassandra.createKeyspace(db_name);
+    return resonse;
   }
 
+  /**
+   * @param db_name
+   * @return
+   * @throws KvstoreException
+   */
   @DELETE
   @Path("{db_name}")
-  public Response deleteDB(@PathParam("db_name") String db_name) throws KvstoreException {
+  public KVResponse deleteDB(@PathParam("db_name") String db_name) throws KvstoreException {
     if (db_name == null) {
-      throw new KvstoreException(400, "bad request");
+      // throw new KvstoreException(400, "bad request");
+      return new KVResponse(400, "db_name should not be null");
     }
-    Response response = kvcassandra.deleteKeyspace(db_name);
+    KVResponse response = kvcassandra.deleteKeyspace(db_name);
     return response;
   }
 
-  // create and delete tables
+  /**
+   * @param db_name
+   * @param table_name_json
+   * @return
+   * @throws KvstoreException
+   * @throws JsonProcessingException
+   */
   @POST
   @Path("databases/{db_name}/tables")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public db_response createTable(@PathParam("db_name") String db_name, String table_name_json)
+  public KVResponse createTable(@PathParam("db_name") String db_name, String table_name_json)
       throws KvstoreException, JsonProcessingException {
     JsonNode jsonNode = objectMapper.readTree(table_name_json);
     String table_name = jsonNode.get("table_name").asText();
-    kvcassandra.createTable(db_name, table_name);
-    return new db_response(db_name);
+    KVResponse response = kvcassandra.createTable(db_name, table_name);
+    return response;
   }
 
+  /**
+   * @param db_name
+   * @param table_name
+   * @return
+   * @throws KvstoreException
+   */
   @DELETE
   @Path("{db_name}/{table_name}")
-  public Response deleteTable(@PathParam("db_name") String db_name, @PathParam("table_name") String table_name)
+  public KVResponse deleteTable(@PathParam("db_name") String db_name, @PathParam("table_name") String table_name)
       throws KvstoreException {
     if (db_name == null || table_name == null) {
       throw new KvstoreException(400, "bad request");
     }
-    Response response = kvcassandra.deleteTable(db_name, table_name);
+    KVResponse response = kvcassandra.deleteTable(db_name, table_name);
     return response;
   }
 
-  // list databases and tables
+  /**
+   * @return
+   * @throws KvstoreException
+   */
   @GET
   @Path("databases")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response listDBs() throws KvstoreException {
-    Response response = kvcassandra.listKeyspaces();
+  public KVResponse listDBs() throws KvstoreException {
+    KVResponse response = kvcassandra.listKeyspaces();
     return response;
   }
 
+  /**
+   * @param db_name
+   * @return
+   * @throws KvstoreException
+   */
   @GET
   @Path("{db_name}/tables")
   @Produces(MediaType.APPLICATION_JSON)
-  public Response listTables(@PathParam("db_name") String db_name) throws KvstoreException {
+  public KVResponse listTables(@PathParam("db_name") String db_name) throws KvstoreException {
     if (db_name == null) {
       throw new KvstoreException(400, "bad request");
     }
-    Response response = kvcassandra.listTables(db_name);
+    KVResponse response = kvcassandra.listTables(db_name);
     return response;
   }
 
-  // put, get, update, and delete key-value pairs
+  /**
+   * @param db_name
+   * @param table_name
+   * @param kvPair
+   * @return
+   * @throws KvstoreException
+   */
   @PUT
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KeyValPair putKeyVal(@PathParam("db_name") String db_name,
+  public KVResponse putKeyVal(@PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name, KeyValPair kvPair) throws KvstoreException {
     if (db_name == null || table_name == null || kvPair == null || kvPair.key == null || kvPair.value == null) {
       throw new KvstoreException(400, "bad request");
     }
-    kvcassandra.putKeyVal(db_name, table_name, kvPair.key, kvPair.value);
-    return kvPair;
+    KVResponse response = kvcassandra.putKeyVal(db_name, table_name, kvPair.key, kvPair.value);
+    return response;
   }
 
+  /**
+   * @param db_name
+   * @param table_name
+   * @param kvPair
+   * @return
+   * @throws KvstoreException
+   */
   @GET
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public Response getKeyVal(@PathParam("db_name") String db_name,
+  public KVResponse getKeyVal(@PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name, KeyValPair kvPair) throws KvstoreException {
     if (db_name == null || table_name == null || kvPair == null || kvPair.key == null) {
       throw new KvstoreException(400, "bad request");
     }
-    kvPair.value = kvcassandra.getVal(db_name, table_name, kvPair.key);
-    return Response.status(Response.Status.OK).entity(kvPair).build();
+    KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
+    return response;
   }
 
+  /**
+   * @param db_name
+   * @param table_name
+   * @param kvPair
+   * @return
+   * @throws KvstoreException
+   */
   @PATCH
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KeyValPair updateKeyVal(@PathParam("db_name") String db_name,
+  public KVResponse updateKeyVal(@PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name, KeyValPair kvPair) throws KvstoreException {
     if (db_name == null || table_name == null || kvPair == null || kvPair.key == null || kvPair.value == null) {
       throw new KvstoreException(400, "bad request");
     }
     // m_kvservice.putKeyVal(db_id, kvPair.key, kvPair.value, true);
-    kvcassandra.updateVal(db_name, table_name, kvPair.key, kvPair.value);
-    return kvPair;
+    KVResponse response = kvcassandra.updateVal(db_name, table_name, kvPair.key, kvPair.value);
+    return response;
   }
 
+  /**
+   * @param db_name
+   * @param table_name
+   * @param kvPair
+   * @return
+   * @throws KvstoreException
+   */
   @DELETE
   @Path("{db_name}/{table_name}/key")
   @Consumes(MediaType.APPLICATION_JSON)
-  public Response deleteKey(@PathParam("db_name") String db_name,
+  public KVResponse deleteKey(@PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name, KeyValPair kvPair) throws KvstoreException {
     if (db_name == null || table_name == null || kvPair == null || kvPair.key == null || kvPair.value != null) {
       throw new KvstoreException(400, "bad request");
     }
     // m_kvservice.deleteKey(db_id, kvPair.key);
-    Response response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
+    KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     return response;
   }
 
