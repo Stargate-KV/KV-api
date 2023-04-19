@@ -139,7 +139,7 @@ public class KVCassandra {
       rows = bridge.executeQuery(query_check).getResultSet().getRowsList();
       // if keyspaces exists, return 409
       if (rows.size() == 0) {
-        return new KVResponse(404, "The database '" + keyspace_name + "' not exists.");
+        return new KVResponse(404, "The database '" + keyspace_name + "' does not exists.");
       }
       response = bridge.executeQuery(queryBuilder.build());
     } catch (StatusRuntimeException ex) {

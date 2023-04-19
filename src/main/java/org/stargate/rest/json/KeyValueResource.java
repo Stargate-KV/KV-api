@@ -8,6 +8,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 
 // add authorization
@@ -32,16 +33,18 @@ public class KeyValueResource {
   @Path("databases")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse createDB(String db_name_json) throws KvstoreException, JsonProcessingException {
+  public Response createDB(String db_name_json) throws KvstoreException, JsonProcessingException {
     JsonNode jsonNode = objectMapper.readTree(db_name_json);
     String db_name;
     try {
       db_name = jsonNode.get("db_name").asText();
     } catch (Exception ex) {
-      return new KVResponse(400, "Bad request, must provide a valid database name.");
+      KVResponse kvResponse =
+          new KVResponse(400, "Bad request, must provide a valid database name.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
-    KVResponse resonse = kvcassandra.createKeyspace(db_name);
-    return resonse;
+    KVResponse response = kvcassandra.createKeyspace(db_name);
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -51,12 +54,14 @@ public class KeyValueResource {
    */
   @DELETE
   @Path("{db_name}")
-  public KVResponse deleteDB(@PathParam("db_name") String db_name) throws KvstoreException {
+  public Response deleteDB(@PathParam("db_name") String db_name) throws KvstoreException {
     if (db_name == null) {
-      return new KVResponse(400, "Bad request, must provide a valid database name.");
+      KVResponse kvResponse =
+          new KVResponse(400, "Bad request, must provide a valid database name.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     KVResponse response = kvcassandra.deleteKeyspace(db_name);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -70,18 +75,19 @@ public class KeyValueResource {
   @Path("databases/{db_name}/tables")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse createTable(@PathParam("db_name") String db_name, String table_name_json)
+  public Response createTable(@PathParam("db_name") String db_name, String table_name_json)
       throws KvstoreException, JsonProcessingException {
     JsonNode jsonNode = objectMapper.readTree(table_name_json);
     String table_name;
     try {
       table_name = jsonNode.get("table_name").asText();
     } catch (Exception ex) {
-      return new KVResponse(400, "Bad request, must provide a valid table name.");
+      KVResponse kvResponse = new KVResponse(400, "Bad request, must provide a valid table name.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
 
     KVResponse response = kvcassandra.createTable(db_name, table_name);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -92,14 +98,16 @@ public class KeyValueResource {
    */
   @DELETE
   @Path("{db_name}/{table_name}")
-  public KVResponse deleteTable(
+  public Response deleteTable(
       @PathParam("db_name") String db_name, @PathParam("table_name") String table_name)
       throws KvstoreException {
     if (db_name == null || table_name == null) {
-      return new KVResponse(400, "Bad request, must provide valid database name and table name.");
+      KVResponse kvResponse =
+          new KVResponse(400, "Bad request, must provide valid database name and table name.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     KVResponse response = kvcassandra.deleteTable(db_name, table_name);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -109,9 +117,9 @@ public class KeyValueResource {
   @GET
   @Path("databases")
   @Produces(MediaType.APPLICATION_JSON)
-  public KVResponse listDBs() throws KvstoreException {
+  public Response listDBs() throws KvstoreException {
     KVResponse response = kvcassandra.listKeyspaces();
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -122,12 +130,13 @@ public class KeyValueResource {
   @GET
   @Path("{db_name}/tables")
   @Produces(MediaType.APPLICATION_JSON)
-  public KVResponse listTables(@PathParam("db_name") String db_name) throws KvstoreException {
+  public Response listTables(@PathParam("db_name") String db_name) throws KvstoreException {
     if (db_name == null) {
-      return new KVResponse(400, "Bad request, must provide valid database name.");
+      KVResponse kvResponse = new KVResponse(400, "Bad request, must provide valid database name.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     KVResponse response = kvcassandra.listTables(db_name);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -141,7 +150,7 @@ public class KeyValueResource {
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse putKeyVal(
+  public Response putKeyVal(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
       KeyValPair kvPair)
@@ -151,11 +160,13 @@ public class KeyValueResource {
         || kvPair == null
         || kvPair.key == null
         || kvPair.value == null) {
-      return new KVResponse(
-          400, "Bad request, must provide valid database, table name and key value pair.");
+      KVResponse kvResponse =
+          new KVResponse(
+              400, "Bad request, must provide valid database, table name and key value pair.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     KVResponse response = kvcassandra.putKeyVal(db_name, table_name, kvPair.key, kvPair.value);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -169,17 +180,19 @@ public class KeyValueResource {
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse getKeyVal(
+  public Response getKeyVal(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
       KeyValPair kvPair)
       throws KvstoreException {
     if (db_name == null || table_name == null || kvPair == null || kvPair.key == null) {
-      return new KVResponse(
-          400, "Bad request, must provide valid database, table name and key value pair.");
+      KVResponse kvResponse =
+          new KVResponse(
+              400, "Bad request, must provide valid database, table name and key value pair.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -193,7 +206,7 @@ public class KeyValueResource {
   @Path("{db_name}/{table_name}")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse updateKeyVal(
+  public Response updateKeyVal(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
       KeyValPair kvPair)
@@ -203,12 +216,14 @@ public class KeyValueResource {
         || kvPair == null
         || kvPair.key == null
         || kvPair.value == null) {
-      return new KVResponse(
-          400, "Bad request, must provide valid database, table name and key value pair.");
+      KVResponse kvResponse =
+          new KVResponse(
+              400, "Bad request, must provide valid database, table name and key value pair.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     // m_kvservice.putKeyVal(db_id, kvPair.key, kvPair.value, true);
     KVResponse response = kvcassandra.updateVal(db_name, table_name, kvPair.key, kvPair.value);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 
   /**
@@ -221,7 +236,7 @@ public class KeyValueResource {
   @DELETE
   @Path("{db_name}/{table_name}/key")
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse deleteKey(
+  public Response deleteKey(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
       KeyValPair kvPair)
@@ -231,11 +246,14 @@ public class KeyValueResource {
         || kvPair == null
         || kvPair.key == null
         || kvPair.value != null) {
-      return new KVResponse(
-          400, "Bad request, must provide valid database, table name and key value pair.");
+
+      KVResponse kvResponse =
+          new KVResponse(
+              400, "Bad request, must provide valid database, table name and key value pair.");
+      return Response.status(kvResponse.status_code).entity(kvResponse).build();
     }
     // m_kvservice.deleteKey(db_id, kvPair.key);
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
-    return response;
+    return Response.status(response.status_code).entity(response).build();
   }
 }
