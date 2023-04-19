@@ -1,14 +1,24 @@
 package org.stargate.rest.json;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeType;
+
 import io.stargate.sgv2.api.common.grpc.StargateBridgeClient;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
+
 
 // add authorization
 @ApplicationScoped
@@ -18,7 +28,7 @@ public class KeyValueResource {
   @Inject StargateBridgeClient bridge;
   @Inject KVCassandra kvcassandra;
   ObjectMapper objectMapper = new ObjectMapper();
-
+  
   public KeyValueResource() {}
 
   // create and delete databases
@@ -129,13 +139,121 @@ public class KeyValueResource {
     KVResponse response = kvcassandra.listTables(db_name);
     return response;
   }
+  
+  private boolean checkType(JsonNode node, KVDataType type) {
+	
+  	switch(type) {
+  	case INT:
+  		return node.isIntegralNumber();
+  	case DOUBLE:
+  		return node.isDouble();
+  	case TEXT:
+  		return node.isTextual();
+  	default:
+  		return false;
+  	}
 
+  }
+  private KVDataType getTypeForRequest(JsonNode jsonNode, JsonNode value) throws KvstoreException {
+	  KVDataType type = null;
+	  if (jsonNode.has("type")) {
+	    	String type_str = jsonNode.get("type").asText().toLowerCase().replaceAll("\\s+","");
+	    	try {
+	    		type = KVDataType.get(type_str);
+	    	}catch(IllegalArgumentException ex) {
+	    		 throw new KvstoreException(
+		          	          400, "Bad request, must provide valid type, value name.");
+			}
+	    	
+
+	    	switch(type) {
+	    	case INT:
+	    	case DOUBLE:
+	    	case TEXT:
+	    		if (!checkType(value, type)) {
+	   	    		 throw new KvstoreException(
+	   	          	          400, "Bad request, must provide valid type, value name.");
+	   			}
+	   			break;
+	    	default:
+	    		if (!value.isArray()) {
+	   	    		 throw new KvstoreException(
+	   	          	          400, "Bad request, must provide valid type, value name.");
+	   			}
+	    		for (JsonNode node: (ArrayNode)value) {
+	    			if (!checkType(node, KVCassandra.DATAMAP.get(type))){
+	    				 throw new KvstoreException(
+	      	          	          400, "Bad request, must provide valid type, value name.");
+	    			}
+	    		}
+	   			break;
+	    	}
+	    	
+	    }else{
+	    	JsonNodeType nodeType = value.getNodeType();
+	    	switch(nodeType) {
+	    	case STRING:
+	    		type = KVDataType.TEXT;
+	    		break;
+	    	case NUMBER:
+	    		if (value.isIntegralNumber()) {
+	    			type = KVDataType.INT;
+	    		}else if(value.isDouble()) {
+	    			type = KVDataType.DOUBLE;
+	    		}
+	    		break;
+	    	case ARRAY:
+	    		Set<JsonNodeType> datatype_set = new HashSet<>();
+	    		boolean is_int = true;
+	    		for (JsonNode node: (ArrayNode)value) {
+	    	
+	    			switch(node.getNodeType()) {
+	    			case NUMBER:
+	    				if (node.isFloatingPointNumber()) {
+	    	    			is_int = false;
+	    	    		}
+	    		   	case STRING:
+	    	    		datatype_set.add(node.getNodeType());
+	    	    		break;   
+	    	    	default:
+	    	    		throw new KvstoreException(
+	    	   					400, "value format not supported.");
+	    			}
+	    		}
+	    		if (datatype_set.size() == 1) {
+	    			JsonNodeType array_node_type = datatype_set.iterator().next();
+	    			switch(array_node_type) {
+	    				case STRING:
+	    					type = KVDataType.LISTTEXT;
+	    					break;
+	    				case NUMBER:
+	    					if (is_int) {
+	    						type = KVDataType.LISTINT;
+	    					}else{
+	    						type = KVDataType.LISTDOUBLE;
+	    					}
+	    			}
+	    		}else {
+	    			type = KVDataType.LISTTEXT;
+	    		}
+	    			
+	    		break;
+	    	default:
+	    		throw new KvstoreException(
+	   					400, "value format not supported.");
+	    	}
+	      	
+	    }
+	  return type;
+  }
   /**
    * @param db_name
    * @param table_name
    * @param kvPair
    * @return
    * @throws KvstoreException
+ * @throws JsonProcessingException 
+ * @throws JsonMappingException 
    */
   @PUT
   @Path("{db_name}/{table_name}")
@@ -144,17 +262,26 @@ public class KeyValueResource {
   public KVResponse putKeyVal(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
-      KeyValPair kvPair)
-      throws KvstoreException {
+      String json_body)
+      throws KvstoreException, JsonMappingException, JsonProcessingException {
     if (db_name == null
         || table_name == null
-        || kvPair == null
-        || kvPair.key == null
-        || kvPair.value == null) {
-      return new KVResponse(
+        || json_body == null
+    ) {
+      throw new KvstoreException(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
-    KVResponse response = kvcassandra.putKeyVal(db_name, table_name, kvPair.key, kvPair.value);
+    JsonNode jsonNode = objectMapper.readTree(json_body);
+    if (!jsonNode.has("key") || !jsonNode.has("value")  ) {
+    	 throw new KvstoreException(
+    	          400, "Bad request, must provide valid database, table name and key value pair.");
+    }
+    String key = jsonNode.get("key").asText();
+    JsonNode value = jsonNode.get("value");
+
+   
+    KVDataType type = getTypeForRequest(jsonNode, value);
+    KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
     return response;
   }
 
@@ -188,6 +315,8 @@ public class KeyValueResource {
    * @param kvPair
    * @return
    * @throws KvstoreException
+ * @throws JsonProcessingException 
+ * @throws JsonMappingException 
    */
   @PATCH
   @Path("{db_name}/{table_name}")
@@ -196,18 +325,28 @@ public class KeyValueResource {
   public KVResponse updateKeyVal(
       @PathParam("db_name") String db_name,
       @PathParam("table_name") String table_name,
-      KeyValPair kvPair)
-      throws KvstoreException {
-    if (db_name == null
-        || table_name == null
-        || kvPair == null
-        || kvPair.key == null
-        || kvPair.value == null) {
-      return new KVResponse(
-          400, "Bad request, must provide valid database, table name and key value pair.");
-    }
+      String json_body)
+      throws KvstoreException, JsonMappingException, JsonProcessingException {
+	  if (db_name == null
+		        || table_name == null
+		        || json_body == null
+	    ) {
+	      throw new KvstoreException(
+	          400, "Bad request, must provide valid database, table name and key value pair.");
+	    }
+	    JsonNode jsonNode = objectMapper.readTree(json_body);
+	    if (!jsonNode.has("key") || !jsonNode.has("value")  ) {
+	    	 throw new KvstoreException(
+	    	          400, "Bad request, must provide valid database, table name and key value pair.");
+	    }
+	    String key = jsonNode.get("key").asText();
+	    JsonNode value = jsonNode.get("value");
+
+	   
+	    KVDataType type = getTypeForRequest(jsonNode, value);
+
     // m_kvservice.putKeyVal(db_id, kvPair.key, kvPair.value, true);
-    KVResponse response = kvcassandra.updateVal(db_name, table_name, kvPair.key, kvPair.value);
+    KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
     return response;
   }
 
@@ -229,8 +368,7 @@ public class KeyValueResource {
     if (db_name == null
         || table_name == null
         || kvPair == null
-        || kvPair.key == null
-        || kvPair.value != null) {
+        || kvPair.key == null) {
       return new KVResponse(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
