@@ -8,11 +8,11 @@
 
 docker 开启：
 
-+ Cassandra node: cass40-stargate_cassandra-1_1(name)
-+ Cassandra node: cass40-stargate_cassandra-2_1
-+ Cassandra node: cass40-stargate_cassandra-3_1
++ Cassandra node: cass40-stargate-cassandra-1-1(name)
++ Cassandra node: cass40-stargate-cassandra-2-1
++ Cassandra node: cass40-stargate-cassandra-3-1
 + Dynamo DB API: cass40-stargate_dynamoapi_1(port: 8082)
-+ Stargate Coordinator node: cass40-stargate_coordinator_1(port: 8081 authentication, port: 9042 clash)
++ Stargate Coordinator node: cass40-stargate-coordinator-1(port: 8081 authentication, port: 9042 clash)
 
 全部关闭：docker-compose down
 
@@ -26,17 +26,19 @@ docker 开启：
 
 + 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 
-  + `docker stop kvstoreapi`
+  + `docker-compose stop kvstoreapi`
+
+  + `docker-compose rm -f kvstoreapi`
 
   + `export SGTAG=v2`
 
     `export PROJTAG=v1.0.0-SNAPSHOT`
 
-  + `docker-compose up kvstoreapi`
+  + `docker-compose up -d kvstoreapi`
 
 ### CQL 测试语法
 
-+ 开启cqlsh：`docker exec -it cass40-stargate_cassandra-1_1 cqlsh`
++ 开启cqlsh：`docker exec -it cass40-stargate-cassandra-1-1 cqlsh`
 + 看keyspaces: `describe keyspaces`
 + 看table: `SELECT * FROM "kvdb0"."kvtable"`
 

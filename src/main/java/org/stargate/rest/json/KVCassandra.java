@@ -270,10 +270,11 @@ public class KVCassandra {
 
   private KVResponse handleStatusRuntimeException(
       StatusRuntimeException ex, String keyspace_name, String table_name) {
-    System.out.println("got message:" + ex.getMessage());
+    // System.out.println("Exception code: " + code.value());
+    // System.out.println("got message:" + ex.getMessage());
     Status.Code code = ex.getStatus().getCode();
     String error_message = ex.getMessage();
-    // System.out.println("Exception code: " + code.value());
+
     if (code == Status.Code.UNAUTHENTICATED) {
       return new KVResponse(
           401, "The request is unauthorized. Check if the X-Authentication-Token is correct.");
@@ -290,8 +291,10 @@ public class KVCassandra {
     } else if (code == Status.Code.ALREADY_EXISTS) {
       return new KVResponse(409, error_message.substring(error_message.indexOf(":") + 2));
     } else {
-      return new KVResponse(
-          503, "Service not available. Check if the server is running correctly.");
+      // Currently only use pod logs
+      System.out.println("Exception code: " + code.value());
+      System.out.println("Exception message: " + error_message);
+      return new KVResponse(503, "Error not captured, Please see the pod logs for error message");
     }
   }
 }
