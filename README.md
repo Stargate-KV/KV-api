@@ -4,7 +4,7 @@
 
 进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
 
-运行`./start_cas_40.sh `
+运行`./start_cass_40.sh `
 
 docker 开启：
 
