@@ -16,6 +16,10 @@ docker 开启：
 
 全部关闭：docker-compose down
 
+start up kvstoreapi
+sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
+
+
 ### 仅修改kvapi如何重启
 
 修改文件后在`~/rest-jet-value-store/` 下运行:
