@@ -9,11 +9,14 @@ import javax.ws.rs.core.Response;
 import javax.inject.Inject;
 import java.util.Map;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 
 import io.stargate.bridge.proto.QueryOuterClass;
 import io.stargate.sgv2.api.common.cql.builder.QueryBuilder;
 import io.stargate.sgv2.api.common.cql.builder.Replication;
 import io.stargate.sgv2.api.common.grpc.StargateBridgeClient;
+
 
 // add authorization
 @ApplicationScoped
@@ -30,6 +33,20 @@ public class KeyValueResource {
 
   public KeyValueResource() {
 
+  }
+
+  @POST
+  @Path("/cache/on")
+  public Response cacheOn() {
+    kvcassandra.cacheOn();
+    return Response.ok().entity("Cache is now ON").build();
+  }
+
+  @POST
+  @Path("/cache/off")
+  public Response cacheOff() {
+    kvcassandra.cacheOff();
+    return Response.ok().entity("Cache is now OFF").build();
   }
 
   @PUT

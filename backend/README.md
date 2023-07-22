@@ -2,7 +2,7 @@
 
 进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
 
-运行`./start_cas_40.sh `
+运行`./start_cass_40.sh `
 
 docker 开启：
 
@@ -59,21 +59,21 @@ curl -X 'POST' \
 
 // create db
 curl -X 'POST' \
-  'http://localhost:8083/kvstore/v1/databases' \
+  'http://35.221.21.180:8080/kvstore/v1/databases' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd'
+  -H 'X-Cassandra-Token: 9b992b1e-ef06-456c-bcb6-1d59f0ca2d60'
 
 // delete db
 curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/0' \
+  'http://localhost:8080/kvstore/v1/0' \
   -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \
   -H 'accept: application/json' \
   -H 'content-type: application/json'
 
 // put kv
 curl -X 'PUT' \
-  'http://localhost:8083/kvstore/v1/0' \
+  'http://localhost:8081/kvstore/v1/0' \
   -H 'accept: application/json' \
   -H 'content-type: application/json' \
   -H 'X-Cassandra-Token: de2c31f7-c605-4341-9d1e-4669ce5a17bd' \

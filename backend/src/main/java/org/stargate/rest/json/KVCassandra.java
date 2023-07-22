@@ -24,6 +24,25 @@ public class KVCassandra {
     StargateBridgeClient bridge;
     private static final String TABLENAME = "kvtable";
 
+    private static cacheActive = true;
+
+    private final int CACHE_SIZE = 1000;
+
+    private final Map<String, String> cache = Collections.synchronizedMap(new LinkedHashMap<String, String>(CACHE_SIZE, 0.75f, true) {
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return size() > CACHE_SIZE;
+        }
+    });
+
+    public void cacheOn() {
+        this.cacheActive = true;
+    }
+
+    public void cacheOff() {
+        this.cacheActive = false;
+    }
+
+
     public Response createKeyspace(String keyspace_name) {
         QueryOuterClass.Query query = new QueryBuilder()
                 .create()
@@ -77,9 +96,18 @@ public class KVCassandra {
             // FIX: handle exception
             throw new RuntimeException(ex);
         }
+        if (cacheActive) {
+            cache.put(keyspace_name + key, value);
+        }
     }
 
     public String getVal(String keyspace_name, String key) {
+        if (cacheActive) {
+            String value = cache.get(keyspace_name + key);
+            if (value != null) {
+                return value;
+            }
+        }
         // select the value from the table where key = key
         QueryOuterClass.Query query = new QueryBuilder()
                 .select()
@@ -100,10 +128,14 @@ public class KVCassandra {
         QueryOuterClass.Row row = response.getResultSet().getRows(0);
         // get the value from the row
         String value = row.getValues(0).getString();
+        if (cacheActive) {
+            cache.put(keyspace_name + key, value);
+        }
         return value;
     }
 
     public Response updateVal(String keyspace_name, String key, String value) {
+        cache.put(keyspace_name + key, value);
         // update the value in the table where key = key
         QueryOuterClass.Query query = new QueryBuilder()
                 .update(keyspace_name, TABLENAME)
@@ -121,6 +153,7 @@ public class KVCassandra {
     }
 
     public Response deleteKey(String keyspace_name, String key) {
+        cache.remove(keyspace_name + key);
         // delete the row from the table where key = key
         QueryOuterClass.Query query = new QueryBuilder()
                 .delete()
@@ -138,6 +171,7 @@ public class KVCassandra {
     }
 
     public Response deleteKeyspace(String keyspace_name) {
+        cache.clear();
         QueryOuterClass.Query query = new QueryBuilder()
                 .drop()
                 .keyspace(keyspace_name)
