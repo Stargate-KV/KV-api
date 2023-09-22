@@ -6,18 +6,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
-
 import io.stargate.sgv2.api.common.grpc.StargateBridgeClient;
-
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
+import org.stargate.rest.json.KVCache;
+
+
+
 
 
 // add authorization
@@ -27,6 +27,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement
 public class KeyValueResource {
   @Inject StargateBridgeClient bridge;
   @Inject KVCassandra kvcassandra;
+  @Inject KVCache kvcache;
   ObjectMapper objectMapper = new ObjectMapper();
   
   public KeyValueResource() {}
@@ -281,8 +282,11 @@ public class KeyValueResource {
 
    
     KVDataType type = getTypeForRequest(jsonNode, value);
-    KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
-    return response;
+    // Not sure whether the key already exists or not, set dirty to true
+    KVResponse cacheResponse = kvcache.createOrUpdate(key, value, db_name, table_name, type, true);
+    return cacheResponse;
+    // KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
+    // return response;
   }
 
   /**
@@ -305,8 +309,18 @@ public class KeyValueResource {
       return new KVResponse(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
-    KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
-    return response;
+    if (kvcache.read(kvPair.key, db_name, table_name) == null) {
+      // Does not exists in cache, read from cassandra first
+      KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
+      JsonNode value = response.body.getJsonBody();
+      // Not dirty because we did not modify it
+      kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type, false);
+      return response;
+    } else {
+      return new KVResponse(200, "The key '" + kvPair.key + "' has a value of" + kvcache.read(kvPair.key, db_name, table_name).getValue());
+    }
+    // KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
+    // return response;
   }
 
   /**
@@ -345,9 +359,11 @@ public class KeyValueResource {
 	   
 	    KVDataType type = getTypeForRequest(jsonNode, value);
 
-    // m_kvservice.putKeyVal(db_id, kvPair.key, kvPair.value, true);
-    KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
-    return response;
+    // Not sure whether the key-value pair exists in cassandra or not, so set it to dirty
+    KVResponse cacheResponse = kvcache.createOrUpdate(key, value, db_name, table_name, type, true);
+    return cacheResponse;
+    // KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
+    // return response;
   }
 
   /**
@@ -372,7 +388,10 @@ public class KeyValueResource {
       return new KVResponse(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
-    // m_kvservice.deleteKey(db_id, kvPair.key);
+    if (kvcache.read(kvPair.key, db_name, table_name) != null) {
+      // delete entry in cache
+      kvcache.delete(kvPair.key, db_name, table_name);
+    }
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     return response;
   }
