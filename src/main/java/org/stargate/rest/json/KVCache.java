@@ -7,6 +7,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.enterprise.context.ApplicationScoped;
 import org.stargate.rest.json.KVResponse;
 
+/* QUESTIONS:
+ * Dirty is not useful now because we update everything to cassandra first?
+ * It seems no write-back is needed this time.
+ * How to delete the locks? When deleting element from cache, the lock is acquired.
+ * How to update the value in cache if the Cassandra got updated by other nodes? **
+ */
 @ApplicationScoped
 public class KVCache {
 
@@ -17,7 +23,7 @@ public class KVCache {
     private final LinkedList<Integer> fifoOrder; // To implement FIFO eviction
 
     public KVCache() {
-        this.maxSlots = 10;
+        this.maxSlots = 10; // default to 10 at test stage
         this.usedSlots = 0;
         this.slots = new HashMap<>();
         this.lockMap = new HashMap<>();
@@ -37,16 +43,19 @@ public class KVCache {
 
         lock.lock();
         try {
-            slots.remove(hash);
-            usedSlots--;
-            fifoOrder.remove((Integer) hash);
+            // slots.remove(hash);
+            // usedSlots--;
+            // fifoOrder.remove((Integer) hash);
+            // Only set this value to true instead of removing
+            KVCacheSlot slot = slots.get(hash);
+            slot.setTombstone(true);
         } finally {
             lock.unlock();
         }
-        return new KVResponse(201, "The key of '" + key + " has been deleted from cache successfully.");
+        return new KVResponse(201, "The key of '" + key + " has been deleted successfully.");
     }
 
-    public KVResponse createOrUpdate(String key, JsonNode value, String keyspace, String table, KVDataType valueType, boolean dirty) {
+    public KVResponse createOrUpdate(String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
         int hash = computeHash(key, keyspace, table);
         
         if (usedSlots >= maxSlots && !slots.containsKey(hash)) {
@@ -57,7 +66,7 @@ public class KVCache {
                 if (!slots.containsKey(hash)) {
                     evictOldest();
                 }
-                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType, dirty);
+                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType);
             } finally {
                 releaseLocksInOrder(hash, oldestHash);
             }
@@ -65,7 +74,7 @@ public class KVCache {
             Lock lock = getLockForHash(hash);
             lock.lock();
             try {
-                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType, dirty);
+                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType);
             } finally {
                 lock.unlock();
             }
@@ -73,22 +82,25 @@ public class KVCache {
         return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been inserted into cache successfully.");
     }
 
-    private void internalCreateOrUpdate(int hash, String key, JsonNode value, String keyspace, String table, KVDataType valueType, boolean dirty) {
+    private void internalCreateOrUpdate(int hash, String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
         if (slots.containsKey(hash)) {
             // Update
             KVCacheSlot slot = slots.get(hash);
-            if (slot.getValue() == value && slot.getValueType() == valueType) {
+            if (slot.getValue() == value && slot.getValueType() == valueType && slot.getTombstone()==false) {
                 // No need to update
                 return;
             }
             slot.setValue(value);
             slot.setValueType(valueType);
-            slot.setDirty(true);
+            // slot.setDirty(true);
+            // In case it is a deleted entry, then mark it as active
+            slot.setTombstone(false);
             
+            // remove and insert to the top of queue
             fifoOrder.remove((Integer) hash); // Explicitly cast to avoid confusion with index-based removal
         } else {
             // Create
-            slots.put(hash, new KVCacheSlot(key, value, keyspace, table, valueType, dirty, false));
+            slots.put(hash, new KVCacheSlot(key, value, keyspace, table, valueType, false, false));
             usedSlots++;
         }
         

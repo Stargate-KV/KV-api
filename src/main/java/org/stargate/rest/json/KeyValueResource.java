@@ -282,11 +282,15 @@ public class KeyValueResource {
 
    
     KVDataType type = getTypeForRequest(jsonNode, value);
-    // Not sure whether the key already exists or not, set dirty to true
-    KVResponse cacheResponse = kvcache.createOrUpdate(key, value, db_name, table_name, type, true);
-    return cacheResponse;
-    // KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
-    // return response;
+    
+    // first add this to the Cassandra database, then add to cache if no error
+    KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
+    if (response.status_code == 201) {
+      // In case the other process already put it into the cache, use createOrUpdate
+      kvcache.createOrUpdate(key, value, db_name, table_name, type);
+    }
+
+    return response;
   }
 
   /**
@@ -309,18 +313,23 @@ public class KeyValueResource {
       return new KVResponse(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
-    if (kvcache.read(kvPair.key, db_name, table_name) == null) {
+
+    KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
+    if (slot == null) {
       // Does not exists in cache, read from cassandra first
       KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
       JsonNode value = response.body.getJsonBody();
-      // Not dirty because we did not modify it
-      kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type, false);
+      // add to cache after fetch from cassandra
+      kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type);
       return response;
-    } else {
-      return new KVResponse(200, "The key '" + kvPair.key + "' has a value of" + kvcache.read(kvPair.key, db_name, table_name).getValue());
+    } else if (slot.getTombstone()==true) {
+      // The element has already been deleted
+      return new KVResponse(
+        404, "The key '" + kvPair.key + "' cannot be found in the current database.");
     }
-    // KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
-    // return response;
+    else{
+      return new KVResponse(200, "The key '" + kvPair.key + "' has a value of " + kvcache.read(kvPair.key, db_name, table_name).getValue());
+    }
   }
 
   /**
@@ -359,11 +368,12 @@ public class KeyValueResource {
 	   
 	    KVDataType type = getTypeForRequest(jsonNode, value);
 
-    // Not sure whether the key-value pair exists in cassandra or not, so set it to dirty
-    KVResponse cacheResponse = kvcache.createOrUpdate(key, value, db_name, table_name, type, true);
-    return cacheResponse;
-    // KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
-    // return response;
+    // first update to cassandra to achieve consistency
+    KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
+    if (response.status_code == 200) {
+      kvcache.createOrUpdate(key, value, db_name, table_name, type);
+    }
+    return response;
   }
 
   /**
@@ -388,11 +398,15 @@ public class KeyValueResource {
       return new KVResponse(
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
-    if (kvcache.read(kvPair.key, db_name, table_name) != null) {
-      // delete entry in cache
-      kvcache.delete(kvPair.key, db_name, table_name);
-    }
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
+    if (response.status_code==200) {
+      KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
+      if (slot != null && slot.getTombstone()==false) {
+        // mark entry as tombstone in cache
+        kvcache.delete(kvPair.key, db_name, table_name);
+      }
+    }
+    
     return response;
   }
 }
