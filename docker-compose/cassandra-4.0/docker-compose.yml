@@ -54,7 +54,7 @@ services:
       - RACK_NAME=rack1
       - DATACENTER_NAME=datacenter1
       - ENABLE_AUTH=true
-  kvstoreapi:
+  kvstoreapi-1:
     image: stargate-cmu/key-value-store:${PROJTAG}
     depends_on:
       - coordinator
@@ -68,5 +68,33 @@ services:
       - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
       - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
       - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+  kvstoreapi-2:
+      image: stargate-cmu/key-value-store:${PROJTAG}
+      depends_on:
+        -  kvstoreapi-1
+      networks:
+        - stargate
+      ports:
+        - "8084:8084"
+      mem_limit: 2G
+      environment:
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+        - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
+        - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+  kvstoreapi-3:
+      image: stargate-cmu/key-value-store:${PROJTAG}
+      depends_on:
+        -  kvstoreapi-2
+      networks:
+        - stargate
+      ports:
+        - "8085:8085"
+      mem_limit: 2G
+      environment:
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+        - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
+        - QUARKUS_LOG_LEVEL=${LOGLEVEL}
 networks:
   stargate:

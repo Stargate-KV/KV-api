@@ -59,4 +59,9 @@ docker-compose up -d cassandra-3
 
 docker-compose up -d coordinator
 (docker-compose logs -f coordinator &) | grep -q "Finished starting bundles"
-docker-compose up -d kvstoreapi
+docker-compose up -d kvstoreapi-1
+(docker-compose logs -f coordinator &) | grep -q "Finished starting api-1"
+docker-compose up -d kvstoreapi-2
+(docker-compose logs -f coordinator &) | grep -q "Finished starting api-2"
+docker-compose up -d kvstoreapi-3
+(docker-compose logs -f coordinator &) | grep -q "Finished starting api-3"
