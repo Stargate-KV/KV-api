@@ -79,7 +79,7 @@ services:
       mem_limit: 2G
       environment:
         - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8092
         - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
         - QUARKUS_LOG_LEVEL=${LOGLEVEL}
   kvstoreapi-3:
@@ -93,7 +93,7 @@ services:
       mem_limit: 2G
       environment:
         - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8093
         - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
         - QUARKUS_LOG_LEVEL=${LOGLEVEL}
 networks:
