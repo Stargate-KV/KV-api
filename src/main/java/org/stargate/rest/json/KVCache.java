@@ -4,135 +4,187 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.enterprise.context.ApplicationScoped;
 import org.stargate.rest.json.KVResponse;
+
 
 /* QUESTIONS:
  * Dirty is not useful now because we update everything to cassandra first?
  * It seems no write-back is needed this time.
  * How to delete the locks? When deleting element from cache, the lock is acquired.
- * How to update the value in cache if the Cassandra got updated by other nodes? **
+ * How to update the value in cache if the Cassandra got updated by other nodes? **\
+ * 1. broadcast to all other cache service before return confirmation to client
+ * 2. periadically check cloud (trade-off consistency + avability)
+ * 3. each read check cloud (optimized network io)
  */
 @ApplicationScoped
 public class KVCache {
 
     private final int maxSlots;
-    private int usedSlots;
-    private final Map<Integer, KVCacheSlot> slots;
-    private final Map<Integer, Lock> lockMap;
-    private final LinkedList<Integer> fifoOrder; // To implement FIFO eviction
+    private final List<KVCacheSlot> cacheSlots; // List of pre-allocated slots
+    private final List<Lock> locks; // List of pre-allocated Locks
+    private final Queue<Integer> freeList; // Queue of available slot indices
+    private final Map<Integer, Integer> hashToIndexMap; // Map of hash to index
+    private final Queue<Integer> fifoOrder; // To implement FIFO eviction, elements are hash values
+    
 
     public KVCache() {
         this.maxSlots = 10; // default to 10 at test stage
-        this.usedSlots = 0;
-        this.slots = new HashMap<>();
-        this.lockMap = new HashMap<>();
         this.fifoOrder = new LinkedList<>();
+        this.cacheSlots = IntStream.range(0, maxSlots)
+            .mapToObj(i -> new KVCacheSlot(null, null, null, null, null, false))
+            .collect(Collectors.toList()); // Initialize all slots with 'used' set to false
+        this.freeList = new LinkedList<>(IntStream.range(0, maxSlots).boxed().collect(Collectors.toList())); // All indices are initially free
+        this.locks = IntStream.range(0, maxSlots).mapToObj(i -> new ReentrantLock()).collect(Collectors.toList()); // Initialize lock objects
+        this.hashToIndexMap = new HashMap<>(); // Initialize hash to index mapping
     }
 
     public KVCacheSlot read(String key, String keyspace, String table) {
         // No lock for read currently
         int hash = computeHash(key, keyspace, table);
-
-        return slots.getOrDefault(hash, null);
+        int index = hashToIndexMap.getOrDefault(hash, -1);
+        if (index != -1) {
+            KVCacheSlot slot = cacheSlots.get(index);
+            return slot.isUsed() ? slot : null;
+        }
+        printCache();
+        return null;
     }
 
     public KVResponse delete(String key, String keyspace, String table) {
         int hash = computeHash(key, keyspace, table);
-        Lock lock = getLockForHash(hash);
+        synchronized (hashToIndexMap) {
+            // sync block to ensure that the index we get here is correct one and does not modified by others
+            int index = hashToIndexMap.getOrDefault(hash, -1);
 
-        lock.lock();
-        try {
-            // slots.remove(hash);
-            // usedSlots--;
-            // fifoOrder.remove((Integer) hash);
-            // Only set this value to true instead of removing
-            KVCacheSlot slot = slots.get(hash);
-            slot.setTombstone(true);
-        } finally {
-            lock.unlock();
+            if (index != -1) {
+                Lock lock = locks.get(index);
+                lock.lock();
+                try {
+                    KVCacheSlot slot = cacheSlots.get(index);
+                    slot.setUsed(false);
+                    putInFreeQueue(index); // Return the index to the free list
+                    removehashToIndexMap(hash); // Remove hash to index mapping
+                } finally {
+                    lock.unlock();
+                }
+                printCache();
+                return new KVResponse(201, "The key of '" + key + "' has been deleted successfully.");
+            } else {
+                return new KVResponse(404, "The key of '" + key + "' not found.");
+            }
         }
-        return new KVResponse(201, "The key of '" + key + " has been deleted successfully.");
     }
 
     public KVResponse createOrUpdate(String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
         int hash = computeHash(key, keyspace, table);
-        
-        if (usedSlots >= maxSlots && !slots.containsKey(hash)) {
-            // eviction & insert
-            int oldestHash = fifoOrder.peekFirst();
-            acquireLocksInOrder(hash, oldestHash);
-            try {
-                if (!slots.containsKey(hash)) {
-                    evictOldest();
+        int index;
+        Lock lock;
+        synchronized (hashToIndexMap) {
+            index = hashToIndexMap.getOrDefault(hash, -1);
+    
+            if (index != -1) {
+                // Update
+                lock = locks.get(index);
+                lock.lock();
+                try {
+                    KVCacheSlot slot = cacheSlots.get(index);
+                    assert slot.isUsed();
+                    
+                    slot.setValue(value);
+                    slot.setValueType(valueType);
+                    
+                } finally {
+                    lock.unlock();
                 }
-                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType);
-            } finally {
-                releaseLocksInOrder(hash, oldestHash);
-            }
-        } else {
-            Lock lock = getLockForHash(hash);
-            lock.lock();
-            try {
-                internalCreateOrUpdate(hash, key, value, keyspace, table, valueType);
-            } finally {
-                lock.unlock();
+                printCache();
+                return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been updated in cache successfully.");
+            } else {
+                // Create new entry
+                synchronized (freeList) {
+                    if (!freeList.isEmpty()) {
+                        index = freeList.poll(); // Get a free slot index
+                    }
+                    else {
+                        // Handle cache full - eviction logic
+                        int oldestHash = fifoOrder.poll(); // Get the oldest hash
+                        index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
+                    }
+                }
+                hashToIndexMap.put(hash, index);
+
+                lock = locks.get(index);
+                lock.lock();
+
+                try {
+                    KVCacheSlot cacheslot = cacheSlots.get(index);
+                    // Now, you can reuse the evicted slot for the new key-value pair
+                    cacheslot.setUsed(true);
+                    cacheslot.setValue(value);
+                    cacheslot.setKey(key);
+                    cacheslot.setKeyspace(keyspace);
+                    cacheslot.setTable(table);
+                    cacheslot.setValueType(valueType);
+                    
+                    fifoOrder.offer(hash); // Add new hash to fifo order
+                } finally {
+                    lock.unlock();
+                }
+                printCache();
+                return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been inserted into cache, evicting an old entry.");
             }
         }
-        return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been inserted into cache successfully.");
     }
 
-    private void internalCreateOrUpdate(int hash, String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
-        if (slots.containsKey(hash)) {
-            // Update
-            KVCacheSlot slot = slots.get(hash);
-            if (slot.getValue() == value && slot.getValueType() == valueType && slot.getTombstone()==false) {
-                // No need to update
-                return;
-            }
-            slot.setValue(value);
-            slot.setValueType(valueType);
-            // slot.setDirty(true);
-            // In case it is a deleted entry, then mark it as active
-            slot.setTombstone(false);
-            
-            // remove and insert to the top of queue
-            fifoOrder.remove((Integer) hash); // Explicitly cast to avoid confusion with index-based removal
-        } else {
-            // Create
-            slots.put(hash, new KVCacheSlot(key, value, keyspace, table, valueType, false, false));
-            usedSlots++;
-        }
-        
-        fifoOrder.add(hash);
-    }
     
     private int computeHash(String key, String keyspace, String table) {
         return Objects.hash(key, keyspace, table);
     }
 
-    private Lock getLockForHash(int hash) {
-        return lockMap.computeIfAbsent(hash, key -> new ReentrantLock());
-    }
-
-    private void evictOldest() {
-        int oldestHash = fifoOrder.removeFirst();
-        slots.remove(oldestHash);
-        usedSlots--;
-    }
-
-    private void acquireLocksInOrder(int hash1, int hash2) {
-        if (hash1 < hash2) {
-            getLockForHash(hash1).lock();
-            getLockForHash(hash2).lock();
-        } else {
-            getLockForHash(hash2).lock();
-            getLockForHash(hash1).lock();
+    private void putInhashToIndexMap(int hash, int index) {
+        synchronized (hashToIndexMap) {
+            hashToIndexMap.put(hash, index);
         }
     }
-    
-    private void releaseLocksInOrder(int hash1, int hash2) {
-        getLockForHash(hash1).unlock();
-        getLockForHash(hash2).unlock();
+
+    private void removehashToIndexMap(int hash) {
+        synchronized (hashToIndexMap) {
+            hashToIndexMap.remove(hash);
+        }
     }
+
+    private void putInFreeQueue(int index) {
+        synchronized (freeList) {
+            freeList.offer(index);
+        }
+    }
+
+    private void removeFreeQueue(int index) {
+        synchronized (freeList) {
+            freeList.poll();
+        }
+    }
+
+    public void printCache() {
+        // Print cacheSlots List
+        System.out.println("cacheSlots: ");
+        for (KVCacheSlot slot : cacheSlots) {
+            System.out.println(slot);
+        }
+    
+        // Print freeList Queue
+        System.out.println("freeList: " + freeList);
+    
+        // Print hashToIndexMap Map
+        System.out.println("hashToIndexMap: ");
+        for (Map.Entry<Integer, Integer> entry : hashToIndexMap.entrySet()) {
+            System.out.println("Hash: " + entry.getKey() + ", Index: " + entry.getValue());
+        }
+    
+        // Print fifoOrder Queue
+        System.out.println("fifoOrder: " + fifoOrder);
+    }
+    
 }

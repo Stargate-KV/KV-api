@@ -318,16 +318,13 @@ public class KeyValueResource {
     if (slot == null) {
       // Does not exists in cache, read from cassandra first
       KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
-      JsonNode value = response.body.getJsonBody();
-      // add to cache after fetch from cassandra
-      kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type);
+      if (response.status_code == 200) { 
+        JsonNode value = response.body.getJsonBody();
+        // add to cache after fetch from cassandra
+        kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type);
+      }
       return response;
-    } else if (slot.getTombstone()==true) {
-      // The element has already been deleted
-      return new KVResponse(
-        404, "The key '" + kvPair.key + "' cannot be found in the current database.");
-    }
-    else{
+    } else {
       return new KVResponse(200, "The key '" + kvPair.key + "' has a value of " + kvcache.read(kvPair.key, db_name, table_name).getValue());
     }
   }
@@ -401,8 +398,7 @@ public class KeyValueResource {
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     if (response.status_code==200) {
       KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-      if (slot != null && slot.getTombstone()==false) {
-        // mark entry as tombstone in cache
+      if (slot != null) {
         kvcache.delete(kvPair.key, db_name, table_name);
       }
     }

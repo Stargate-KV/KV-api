@@ -8,17 +8,15 @@ public class KVCacheSlot {
     private String keyspace;
     private String table;
     private KVDataType valueType;
-    private boolean dirty;
-    private boolean tombstone;
+    private boolean used;
 
-    public KVCacheSlot(String key, JsonNode value, String keyspace, String table, KVDataType kvDataType, boolean dirty, boolean tombstone) {
+    public KVCacheSlot(String key, JsonNode value, String keyspace, String table, KVDataType kvDataType, boolean used) {
         this.key = key;
         this.value = value;
         this.keyspace = keyspace;
         this.table = table;
         this.valueType = kvDataType;
-        this.dirty = false;
-        this.tombstone = false;
+        this.used = used;
     }
     
     public JsonNode getValue() {
@@ -37,19 +35,36 @@ public class KVCacheSlot {
         this.valueType = kvDataType;
     }
         
-    public boolean getDirty() {
-        return this.dirty;
+    public boolean isUsed() {
+        return this.used;
     }
 
-    public void setDirty(boolean dirty) {
-        this.dirty = dirty;
-    }
-    
-    public boolean getTombstone() {
-        return this.tombstone;
+    public void setUsed(boolean used) {
+        this.used = used;
     }
 
-    public void setTombstone(boolean tombstone) {
-        this.tombstone = tombstone;
+    public void setKey(String key) {
+        this.key = key;
     }
+
+    public void setKeyspace(String keyspace) {
+        this.keyspace = keyspace;
+    }
+
+    public void setTable(String table) {
+        this.table = table;
+    }
+
+    @Override
+    public String toString() {
+        return "KVCacheSlot{" +
+            "key='" + key + '\'' +
+            ", value=" + value +
+            ", keyspace='" + keyspace + '\'' +
+            ", table='" + table + '\'' +
+            ", valueType=" + valueType +
+            ", used=" + used +
+            '}';
+    }
+
 }
