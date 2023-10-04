@@ -43,7 +43,7 @@ public class KeyValueResource {
   @Path("databases")
   @Produces(MediaType.APPLICATION_JSON)
   @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse createDB(String db_name_json) throws KvstoreException, JsonProcessingException {
+  public KVResponse createDB(String db_name_json) throws KvstoreException, JsonProcessingException, InterruptedException {
     JsonNode jsonNode = objectMapper.readTree(db_name_json);
     String db_name;
     try {
@@ -321,7 +321,7 @@ public class KeyValueResource {
       if (response.status_code == 200) { 
         JsonNode value = response.body.getJsonBody();
         // add to cache after fetch from cassandra
-        kvcache.createOrUpdate(kvPair.key, value, db_name, table_name, response.body.type);
+        kvcache.create(kvPair.key, value, db_name, table_name, response.body.type);
       }
       return response;
     } else {
@@ -368,7 +368,7 @@ public class KeyValueResource {
     // first update to cassandra to achieve consistency
     KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
     if (response.status_code == 200) {
-      kvcache.createOrUpdate(key, value, db_name, table_name, type);
+      kvcache.update(key, value, db_name, table_name, type);
     }
     return response;
   }

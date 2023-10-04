@@ -9,14 +9,16 @@ public class KVCacheSlot {
     private String table;
     private KVDataType valueType;
     private boolean used;
+    private int hashvalue;
 
-    public KVCacheSlot(String key, JsonNode value, String keyspace, String table, KVDataType kvDataType, boolean used) {
+    public KVCacheSlot(String key, JsonNode value, String keyspace, String table, KVDataType kvDataType, boolean used, int hashvalue) {
         this.key = key;
         this.value = value;
         this.keyspace = keyspace;
         this.table = table;
         this.valueType = kvDataType;
         this.used = used;
+        this.hashvalue = hashvalue;
     }
     
     public JsonNode getValue() {
@@ -54,6 +56,14 @@ public class KVCacheSlot {
     public void setTable(String table) {
         this.table = table;
     }
+    
+    public void setHashvalue(int hashvalue) {
+        this.hashvalue = hashvalue;
+    }
+
+    public int getHashvalue() {
+        return this.hashvalue;
+    }
 
     @Override
     public String toString() {
@@ -64,6 +74,7 @@ public class KVCacheSlot {
             ", table='" + table + '\'' +
             ", valueType=" + valueType +
             ", used=" + used +
+            ", hashvalue=" + hashvalue +
             '}';
     }
 
