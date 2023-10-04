@@ -286,8 +286,7 @@ public class KeyValueResource {
     // first add this to the Cassandra database, then add to cache if no error
     KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
     if (response.status_code == 201) {
-      // In case the other process already put it into the cache, use createOrUpdate
-      kvcache.createOrUpdate(key, value, db_name, table_name, type);
+      kvcache.create(key, value, db_name, table_name, type);
     }
 
     return response;
