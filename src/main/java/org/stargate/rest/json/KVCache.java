@@ -37,7 +37,7 @@ public class KVCache {
 
     public KVCache() {
         long freeMemory = Runtime.getRuntime().freeMemory();
-        this.maxSlots = 3; // (int)(freeMemory * 0.8 / (128 * 1024)); // Allocate 80% of the memory, max size of slots is 128KB
+        this.maxSlots = (int)(freeMemory * 0.8 / (128 * 1024)); // Allocate 80% of the memory, max size of slots is 128KB
         this.lruOrder = new LinkedHashMap<Integer, Boolean>(maxSlots, 1.0f, true) {
             protected boolean removeEldestEntry(Map.Entry<Integer, Boolean> eldest) {
                 return false; // Avoid automatic removal, since managing size externally
