@@ -119,7 +119,15 @@ public class KVCache {
             }
             else {
                 // Handle cache full - eviction logic
-                int oldestHash = fifoOrder.poll(); // Get the oldest hash
+                Integer oldestHash = null;
+                // Lazy Cleanup for issue in delete method (The element in queue might already got deleted)
+                while(oldestHash == null || !hashToIndexMap.containsKey(oldestHash)) {
+                    oldestHash = fifoOrder.poll(); // Get the oldest hash, might already be deleted
+                    if(oldestHash == null) {
+                        return new KVResponse(500, "ERROR: The fifoOrder does not have any value inside for eviction!");
+                    }
+                }
+                
                 index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
             }
         }
