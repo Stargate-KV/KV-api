@@ -3,7 +3,6 @@ package org.stargate.rest.json;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -13,14 +12,12 @@ import org.stargate.rest.json.KVResponse;
 
 
 /* QUESTIONS:
- * TODO: 1. Set the maxSlots based on 80% * avaliable memory
- * 2. Implement the LRU cache logic
- * 3. Ask about the lock issues
- * 4. Implement the concurrency map
- * Have to lock hashToIndexMap for the index, otherwise, we have the index i, but when we are processing,
- * the element in this index might be deleted (evicted) already! Or replaced with another value!
+ * Implement the LRU cache logic
+ * We have the index i, but when we are processing, the element in this index might be 
+ * deleted (evicted) already! Or replaced with another value!
  * One way is to store the hash value inside, check first whenever we need to process.
  * But the last update wins this case.
+ * 
  * How to update the value in cache if the Cassandra got updated by other nodes? **\
  * 1. broadcast to all other cache service before return confirmation to client
  * 2. periadically check cloud (trade-off consistency + avability)
@@ -29,18 +26,23 @@ import org.stargate.rest.json.KVResponse;
 @ApplicationScoped
 public class KVCache {
 
+    // This is the LRU version of implementation
     private final int maxSlots;
     private final List<KVCacheSlot> cacheSlots; // List of pre-allocated slots
     private final List<Lock> locks; // List of pre-allocated Locks
     private final Queue<Integer> freeList; // Queue of available slot indices
     private final Map<Integer, Integer> hashToIndexMap; // Map of hash to index
-    private final Queue<Integer> fifoOrder; // To implement FIFO eviction, elements are hash values
+    private final LinkedHashMap<Integer, Boolean> lruOrder; // To implement FIFO eviction, elements are hash values
     
 
     public KVCache() {
         long freeMemory = Runtime.getRuntime().freeMemory();
-        this.maxSlots = (int)(freeMemory * 0.8 / (128 * 1024)); // Allocate 80% of the memory, max size of slots is 128KB
-        this.fifoOrder = new ConcurrentLinkedQueue<>();
+        this.maxSlots = 3; // (int)(freeMemory * 0.8 / (128 * 1024)); // Allocate 80% of the memory, max size of slots is 128KB
+        this.lruOrder = new LinkedHashMap<Integer, Boolean>(maxSlots, 1.0f, true) {
+            protected boolean removeEldestEntry(Map.Entry<Integer, Boolean> eldest) {
+                return false; // Avoid automatic removal, since managing size externally
+            }
+        };
         this.cacheSlots = IntStream.range(0, maxSlots)
             .mapToObj(i -> new KVCacheSlot(null, null, null, null, null, false, -1))
             .collect(Collectors.toList()); // Initialize all slots with 'used' set to false
@@ -67,10 +69,14 @@ public class KVCache {
                 lock.unlock();
                 return null;
             }
+            synchronized (lruOrder) {
+                lruOrder.put(hash, true); // Update LRU order
+            }
             lock.unlock();
+            printCache();
             return slot.isUsed() ? slot : null;
         }
-        printCache();
+        
         return null;
     }
 
@@ -92,6 +98,9 @@ public class KVCache {
                 slot.setUsed(false);
                 putInFreeQueue(index);
                 removehashToIndexMap(hash); // Remove hash to index mapping
+                synchronized (lruOrder) {
+                    lruOrder.remove(hash); // Remove the hash from the LRU order
+                }
             } finally {
                 lock.unlock();
             }
@@ -119,8 +128,16 @@ public class KVCache {
             }
             else {
                 // Handle cache full - eviction logic
-                int oldestHash = fifoOrder.poll(); // Get the oldest hash
-                index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
+                synchronized (lruOrder) {
+                    Iterator<Integer> it = lruOrder.keySet().iterator();
+                    if (it.hasNext()) {
+                        int oldestHash = it.next(); // Get the oldest hash
+                        it.remove();
+                        index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
+                    } else {
+                        return new KVResponse(500, "ERROR: The lruOrder does not have any value inside for eviction!");
+                    }
+                }
             }
         }
         hashToIndexMap.put(hash, index);
@@ -139,7 +156,10 @@ public class KVCache {
             cacheslot.setValueType(valueType);
             cacheslot.setHashvalue(hash);
             
-            fifoOrder.offer(hash); // Add new hash to fifo order
+            synchronized (lruOrder) {
+                lruOrder.put(hash, true); // Add new hash to LRU order
+            }
+
         } finally {
             lock.unlock();
         }
@@ -177,6 +197,10 @@ public class KVCache {
         } finally {
             lock.unlock();
         }
+
+        synchronized (lruOrder) {
+            lruOrder.put(hash, true); // Update LRU order
+        }
         printCache();
         return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been updated in cache successfully.");
     }
@@ -212,8 +236,8 @@ public class KVCache {
             System.out.println("Hash: " + entry.getKey() + ", Index: " + entry.getValue());
         }
     
-        // Print fifoOrder Queue
-        System.out.println("fifoOrder: " + fifoOrder);
+        // Print lruOrder Queue
+        System.out.println("lruOrder: " + lruOrder);
     }
     
 }
