@@ -23,6 +23,7 @@ docker 开启：
 + format：`./mvnw com.spotify.fmt:fmt-maven-plugin:format`
 
 + build image: `sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083`
++ 进入rest-key-value-store-master directory, build image: 'sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083'
 
 + 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 
