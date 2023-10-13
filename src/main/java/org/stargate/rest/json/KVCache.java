@@ -60,19 +60,15 @@ public class KVCache {
         int index = hashToIndexMap.getOrDefault(hash, -1);
         if (index != -1) {
             // Might need to improve to read lock afterwards
-            Lock lock = locks.get(index);
-            lock.lock();
             KVCacheSlot slot = cacheSlots.get(index);
             // Check whether the hashvalue matches, if not, the value already got evicted.
             int slotHashvalue = slot.getHashvalue();
             if (slotHashvalue != hash) {
-                lock.unlock();
                 return null;
             }
             synchronized (lruOrder) {
                 lruOrder.put(hash, true); // Update LRU order
             }
-            lock.unlock();
             printCache();
             return slot.isUsed() ? slot : null;
         }
