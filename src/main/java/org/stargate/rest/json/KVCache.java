@@ -58,16 +58,12 @@ public class KVCache {
         int index = hashToIndexMap.getOrDefault(hash, -1);
         if (index != -1) {
             // Might need to improve to read lock afterwards
-            Lock lock = locks.get(index);
-            lock.lock();
             KVCacheSlot slot = cacheSlots.get(index);
             // Check whether the hashvalue matches, if not, the value already got evicted.
             int slotHashvalue = slot.getHashvalue();
             if (slotHashvalue != hash) {
-                lock.unlock();
                 return null;
             }
-            lock.unlock();
             return slot.isUsed() ? slot : null;
         }
         printCache();
