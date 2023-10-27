@@ -56,169 +56,149 @@ public class KVCache {
     }
 
     public KVCacheSlot read(String key, String keyspace, String table) {
-        try {
-            int hash = computeHash(key, keyspace, table);
-            int index = hashToIndexMap.getOrDefault(hash, -1);
-            if (index != -1) {
-                // Might need to improve to read lock afterwards
-                KVCacheSlot slot = cacheSlots.get(index);
-                // Check whether the hashvalue matches, if not, the value already got evicted.
-                int slotHashvalue = slot.getHashvalue();
-                if (slotHashvalue != hash) {
-                    return null;
-                }
-                synchronized (lruOrder) {
-                    lruOrder.put(hash, true); // Update LRU order
-                }
-                // printCache();
-                return slot.isUsed() ? slot : null;
+        int hash = computeHash(key, keyspace, table);
+        int index = hashToIndexMap.getOrDefault(hash, -1);
+        if (index != -1) {
+            // Might need to improve to read lock afterwards
+            KVCacheSlot slot = cacheSlots.get(index);
+            // Check whether the hashvalue matches, if not, the value already got evicted.
+            int slotHashvalue = slot.getHashvalue();
+            if (slotHashvalue != hash) {
+                return null;
             }
-            
-            return null;
-        } catch (Exception e) {
-            System.out.println("Error while read");
-            return null;
+            synchronized (lruOrder) {
+                lruOrder.put(hash, true); // Update LRU order
+            }
+            // printCache();
+            return slot.isUsed() ? slot : null;
         }
+        
+        return null;
     }
 
     public KVResponse delete(String key, String keyspace, String table) {
-        try {
-            int hash = computeHash(key, keyspace, table);
-            int index = hashToIndexMap.getOrDefault(hash, -1);
+        int hash = computeHash(key, keyspace, table);
+        int index = hashToIndexMap.getOrDefault(hash, -1);
 
-            if (index != -1) {
-                Lock lock = locks.get(index);
-                lock.lock();
-                try {
-                    KVCacheSlot slot = cacheSlots.get(index);
-                    int slotHashvalue = slot.getHashvalue();
-                    // Only proceed if hash matches
-                    if (slotHashvalue != hash) {
-                        lock.unlock();
-                        return new KVResponse(404, "The key of '" + key + "' not found.");
-                    }
-                    slot.setUsed(false);
-                    putInFreeQueue(index);
-                    removehashToIndexMap(hash); // Remove hash to index mapping
-                    synchronized (lruOrder) {
-                        lruOrder.remove(hash); // Remove the hash from the LRU order
-                    }
-                } finally {
+        if (index != -1) {
+            Lock lock = locks.get(index);
+            lock.lock();
+            try {
+                KVCacheSlot slot = cacheSlots.get(index);
+                int slotHashvalue = slot.getHashvalue();
+                // Only proceed if hash matches
+                if (slotHashvalue != hash) {
                     lock.unlock();
+                    return new KVResponse(404, "The key of '" + key + "' not found.");
                 }
-                // printCache();
-                return new KVResponse(201, "The key of '" + key + "' has been deleted successfully.");
-            } else {
-                return new KVResponse(404, "The key of '" + key + "' not found.");
+                slot.setUsed(false);
+                putInFreeQueue(index);
+                removehashToIndexMap(hash); // Remove hash to index mapping
+                synchronized (lruOrder) {
+                    lruOrder.remove(hash); // Remove the hash from the LRU order
+                }
+            } finally {
+                lock.unlock();
             }
-        } catch (Exception e) {
-            System.out.println("Error while delete");
+            // printCache();
+            return new KVResponse(201, "The key of '" + key + "' has been deleted successfully.");
+        } else {
             return new KVResponse(404, "The key of '" + key + "' not found.");
         }
     }
 
     public KVResponse create(String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
-        try {
-            int hash = computeHash(key, keyspace, table);
-            int index;
-            Lock lock;
+        int hash = computeHash(key, keyspace, table);
+        int index;
+        Lock lock;
 
-            index = hashToIndexMap.getOrDefault(hash, -1);
-            if (index != -1) { // Go to update in this case
-                return update(key, value, keyspace, table, valueType);
+        index = hashToIndexMap.getOrDefault(hash, -1);
+        if (index != -1) { // Go to update in this case
+            return update(key, value, keyspace, table, valueType);
+        }
+
+        assert index == -1;
+        synchronized (freeList) {
+            if (!freeList.isEmpty()) {
+                index = freeList.poll(); // Get a free slot index
             }
-
-            assert index == -1;
-            synchronized (freeList) {
-                if (!freeList.isEmpty()) {
-                    index = freeList.poll(); // Get a free slot index
-                }
-                else {
-                    // Handle cache full - eviction logic
-                    synchronized (lruOrder) {
-                        Iterator<Integer> it = lruOrder.keySet().iterator();
-                        if (it.hasNext()) {
-                            int oldestHash = it.next(); // Get the oldest hash
-                            it.remove();
-                            index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
-                        } else {
-                            return new KVResponse(500, "ERROR: The lruOrder does not have any value inside for eviction!");
-                        }
+            else {
+                // Handle cache full - eviction logic
+                synchronized (lruOrder) {
+                    Iterator<Integer> it = lruOrder.keySet().iterator();
+                    if (it.hasNext()) {
+                        int oldestHash = it.next(); // Get the oldest hash
+                        it.remove();
+                        index = hashToIndexMap.remove(oldestHash); // Remove the oldest hash and get its index
+                    } else {
+                        return new KVResponse(500, "ERROR: The lruOrder does not have any value inside for eviction!");
                     }
                 }
             }
-            hashToIndexMap.put(hash, index);
+        }
+        hashToIndexMap.put(hash, index);
 
-            lock = locks.get(index);
-            lock.lock();
+        lock = locks.get(index);
+        lock.lock();
 
-            try {
-                KVCacheSlot cacheslot = cacheSlots.get(index);
-                // Now, you can reuse the evicted slot for the new key-value pair
-                cacheslot.setUsed(true);
-                cacheslot.setValue(value);
-                cacheslot.setKey(key);
-                cacheslot.setKeyspace(keyspace);
-                cacheslot.setTable(table);
-                cacheslot.setValueType(valueType);
-                cacheslot.setHashvalue(hash);
-                
-                synchronized (lruOrder) {
-                    lruOrder.put(hash, true); // Add new hash to LRU order
-                }
-
-            } finally {
-                lock.unlock();
+        try {
+            KVCacheSlot cacheslot = cacheSlots.get(index);
+            // Now, you can reuse the evicted slot for the new key-value pair
+            cacheslot.setUsed(true);
+            cacheslot.setValue(value);
+            cacheslot.setKey(key);
+            cacheslot.setKeyspace(keyspace);
+            cacheslot.setTable(table);
+            cacheslot.setValueType(valueType);
+            cacheslot.setHashvalue(hash);
+            
+            synchronized (lruOrder) {
+                lruOrder.put(hash, true); // Add new hash to LRU order
             }
 
-            // printCache();
-            return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been inserted into cache, evicting an old entry.");
-        } catch (Exception e) {
-            System.out.println("Error while create");
-            return new KVResponse(404, "There is an error");
+        } finally {
+            lock.unlock();
         }
+
+        // printCache();
+        return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been inserted into cache, evicting an old entry.");
     }
 
     public KVResponse update(String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
-        try {
-            int hash = computeHash(key, keyspace, table);
-            int index;
-            Lock lock;
+        int hash = computeHash(key, keyspace, table);
+        int index;
+        Lock lock;
 
-            index = hashToIndexMap.getOrDefault(hash, -1);
-            if (index == -1) { // Go to create in this case
+        index = hashToIndexMap.getOrDefault(hash, -1);
+        if (index == -1) { // Go to create in this case
+            return create(key, value, keyspace, table, valueType);
+        }
+
+        assert index != -1;
+
+        lock = locks.get(index);
+        lock.lock();
+        try {
+            KVCacheSlot slot = cacheSlots.get(index);
+            assert slot.isUsed();
+            int slotHashvalue = slot.getHashvalue();
+            // If hash does not match, this one got evicted, go to create logic
+            if (slotHashvalue != hash) {
+                lock.unlock();
                 return create(key, value, keyspace, table, valueType);
             }
-
-            assert index != -1;
-
-            lock = locks.get(index);
-            lock.lock();
-            try {
-                KVCacheSlot slot = cacheSlots.get(index);
-                assert slot.isUsed();
-                int slotHashvalue = slot.getHashvalue();
-                // If hash does not match, this one got evicted, go to create logic
-                if (slotHashvalue != hash) {
-                    lock.unlock();
-                    return create(key, value, keyspace, table, valueType);
-                }
-                slot.setValue(value);
-                slot.setValueType(valueType);
-                
-            } finally {
-                lock.unlock();
-            }
-
-            synchronized (lruOrder) {
-                lruOrder.put(hash, true); // Update LRU order
-            }
-            // printCache();
-            return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been updated in cache successfully.");
-        } catch (Exception e) {
-            System.out.println("Error while update");
-            return new KVResponse(404, "There is an error");
+            slot.setValue(value);
+            slot.setValueType(valueType);
+            
+        } finally {
+            lock.unlock();
         }
+
+        synchronized (lruOrder) {
+            lruOrder.put(hash, true); // Update LRU order
+        }
+        // printCache();
+        return new KVResponse(201, "The key value pair '" + key + ":" + value + "' has been updated in cache successfully.");
     }
 
     
