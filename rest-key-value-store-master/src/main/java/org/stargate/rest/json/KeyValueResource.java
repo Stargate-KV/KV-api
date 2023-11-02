@@ -93,7 +93,7 @@ public class KeyValueResource {
     try {
       HttpRequest request =
           HttpRequest.newBuilder()
-              .uri(new URI(server + "/kvstore/v1/databases/" + db_name))
+              .uri(new URI(server + "/kvstore/v1/" + db_name))
               .header("X-Cassandra-Token", token)
               .DELETE()
               .build();
@@ -168,7 +168,7 @@ public class KeyValueResource {
     try {
       HttpRequest request =
           HttpRequest.newBuilder()
-              .uri(new URI(server + "/kvstore/v1/databases/" + db_name + "/" + table_name))
+              .uri(new URI(server + "/kvstore/v1/" + db_name + "/" + table_name))
               .header("X-Cassandra-Token", token)
               .DELETE()
               .build();
@@ -230,7 +230,7 @@ public class KeyValueResource {
     try {
       HttpRequest request =
           HttpRequest.newBuilder()
-              .uri(new URI(servers[1] + "/kvstore/v1/databases/" + db_name + "/tables"))
+              .uri(new URI(servers[1] + "/kvstore/v1/" + db_name + "/tables"))
               .header("X-Cassandra-Token", token)
               .GET()
               .build();
@@ -418,7 +418,7 @@ public class KeyValueResource {
     
       HttpRequest request =
           HttpRequest.newBuilder()
-              .uri(new URI(server + "/kvstore/v1/databases/" + db_name + "/" + table_name + "/key"))
+              .uri(new URI(server + "/kvstore/v1/" + db_name + "/" + table_name + "/key"))
               .header("X-Cassandra-Token", token)
               .header("content-type", "application/json")
               .DELETE()
