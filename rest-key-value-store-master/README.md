@@ -4,7 +4,7 @@
 
 进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
 
-运行`./start_cass_40.sh `
+运行`./start_cas_40.sh `
 
 docker 开启：
 
@@ -16,10 +16,6 @@ docker 开启：
 
 全部关闭：docker-compose down
 
-start up kvstoreapi
-sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
-
-
 ### 仅修改kvapi如何重启
 
 修改文件后在`~/rest-jet-value-store/` 下运行:
@@ -27,7 +23,6 @@ sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
 + format：`./mvnw com.spotify.fmt:fmt-maven-plugin:format`
 
 + build image: `sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083`
-+ 进入rest-key-value-store-master directory, build image: 'sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083'
 
 + 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 

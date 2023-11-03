@@ -3,7 +3,7 @@
 # Default to INFO as root log level
 LOGLEVEL=INFO
 SGTAG=v2
-PROJTAG=v1.0.0-SNAPSHOT
+PROJTAG=v1.0.0
 
 while getopts "lqr:t:" opt; do
   case $opt in
@@ -35,32 +35,11 @@ export REQUESTLOG
 export SGTAG
 export PROJTAG
 
-echo "Running DynamoDB adapter $PROJTAG with Stargate coordinator $SGTAG and Cassandra 4.0"
+echo "Running DynamoDB adapter $PROJTAG with Stargate coordinator $SGTAG and Cassandra 3.11 (developer mode)"
 
-# Make sure cassandra-1, the seed node, is up before bringing up other nodes and stargate
-
-docker-compose up -d cassandra-1
-
-# Wait until the seed node is up before bringing up more nodes
-
-(docker-compose logs -f cassandra-1 &) | grep -q "Created default superuser role"
-
-# Bring up the 2nd C* node
-
-docker-compose up -d cassandra-2
-(docker-compose logs -f cassandra-2 &) | grep -q "Startup complete"
-
-# Bring up the 3rd C* node
-
-docker-compose up -d cassandra-3
-(docker-compose logs -f cassandra-3 &) | grep -q "Startup complete"
-
+# Can start all containers in parallel since C* is running inside single Stargate coordinator
 # Bring up the stargate: Coordinator first, then APIs
 
-docker-compose up -d coordinator
+docker-compose -f docker-compose-dev-mode.yml up -d coordinator
 (docker-compose logs -f coordinator &) | grep -q "Finished starting bundles"
-
-docker-compose up -d kvstoreapi-master
-docker-compose up -d kvstoreapi-1
-docker-compose up -d kvstoreapi-2
-docker-compose up -d kvstoreapi-3
+docker-compose -f docker-compose-dev-mode.yml up -d dynamoapi
