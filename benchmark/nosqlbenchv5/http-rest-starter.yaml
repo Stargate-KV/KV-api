@@ -1,0 +1,102 @@
+scenarios:
+  default:
+    schema: run driver=http tags==block:"schema.*" cycles==UNDEF threads==1
+    # rampup: run driver=http tags==block:"rampup.*" cycles===100000 threads=auto
+    main: run driver=http tags==block:"main.*" cycles===100000 threads=auto
+
+bindings:
+  request_id: ToHashedUUID(); ToString();
+  token: Discard(); Token('<<auth_token:>>','<<auth_uri:http://localhost:8081/v1/auth>>', '<<auth_uid:cassandra>>', '<<auth_pswd:cassandra>>');
+
+  seq_key: Mod(10000000); ToString() -> String
+  seq_value: Hash(); Mod(1000000000); ToString() -> String
+
+  rw_key: Uniform(0,1500)->int; ToString() -> String
+  rw_value: Hash(); Uniform(0,1000000000)->int; ToString() -> String
+
+
+blocks:
+  schema:
+    ops:
+      delete-db:
+        method: DELETE
+        uri: http://localhost:8083/kvstore/v1/databases
+        Accept: "application/json"
+        Content-Type: "application/json"
+        X-Cassandra-Token: "{token}"
+        # ok-status: "[2-4][0-9][0-9]"
+
+      create-db:
+        method: POST
+        uri: http://localhost:8083/kvstore/v1/databases
+        Accept: "application/json"
+        Content-Type: "application/json"
+        X-Cassandra-Token: "{token}"
+        body: >1
+          {
+            "db_name": "mydb"
+          }
+
+      delete-table:
+        method: DELETE
+        uri: http://localhost:8083/kvstore/v1/mydb/mytable
+        Accept: "application/json"
+        X-Cassandra-Token: "{token}"
+        Content-Type: "application/json"
+
+      create-table:
+        method: POST
+        uri: http://localhost:8083/kvstore/v1/databases/mydb/tables
+        Accept: "application/json"
+        X-Cassandra-Token: "{token}"
+        Content-Type: "application/json"
+        body: >1
+          {
+            "table_name": "mytable"
+          }
+        # ok-status: "2[0-9][0-9]"
+
+  # rampup:
+  #   ops:
+  #     rampup-insert:
+  #       method: PUT
+  #       uri: http://localhost:8083/kvstore/v1/mydb/mytable
+  #       Accept: "application/json"
+  #       Content-Type: "application/json"
+  #       X-Cassandra-Token: "{token}"
+  #       body: >2
+  #         {
+  #           "key": "{seq_key}",
+  #           "value": "{seq_value}"
+  #         }
+
+  main-write:
+    params:
+      ratio: 1
+    ops:
+      main-write:
+        method: PUT
+        uri: http://localhost:8083/kvstore/v1/mydb/mytable
+        Accept: "application/json"
+        X-Cassandra-Token: "{token}"
+        Content-Type: "application/json"
+        body: >2
+          {
+            "key": "{rw_key}",
+            "value": "{rw_value}"
+          }
+
+  main-read:
+    params:
+      ratio: 9
+    ops:
+      main-select:
+        method: GET
+        uri: http://localhost:8083/kvstore/v1/mydb/mytable
+        Accept: "application/json"
+        X-Cassandra-Token: "{token}"
+        Content-Type: "application/json"
+        body: >2
+          {
+            "key": "{rw_key}"
+          }

@@ -33,3 +33,10 @@ pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup
 release.properties
+
+# benchmark result
+# under directory named my_metrics_dir
+my_metrics_dir/
+# under log
+log/
+*.jar
