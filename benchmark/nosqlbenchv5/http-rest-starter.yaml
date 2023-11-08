@@ -2,7 +2,7 @@ scenarios:
   default:
     schema: run driver=http tags==block:"schema.*" cycles==UNDEF threads==1
     # rampup: run driver=http tags==block:"rampup.*" cycles===100000 threads=auto
-    main: run driver=http tags==block:"main.*" cycles===100000 threads=auto
+    main: run driver=http tags==block:"main.*" cycles===10000 threads=auto
 
 bindings:
   request_id: ToHashedUUID(); ToString();

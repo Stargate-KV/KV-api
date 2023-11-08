@@ -30,13 +30,13 @@ sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
 
 + 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
 
-  + `docker stop kvstoreapi`
-
-  + `export SGTAG=v2`
-
-    `export PROJTAG=v1.0.0-SNAPSHOT`
-
-  + `docker-compose up kvstoreapi`
+```
+cd ~/rest-key-value-store/docker-compose/cassandra-4.0
+docker stop cass40-stargate_kvstoreapi_1
+export SGTAG=v2
+export PROJTAG=v1.0.0-SNAPSHOT
+docker-compose up -d kvstoreapi
+```
 
 ### CQL 测试语法
 

@@ -38,5 +38,5 @@ release.properties
 # under directory named my_metrics_dir
 my_metrics_dir/
 # under log
-log/
+logs/
 *.jar

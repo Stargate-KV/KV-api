@@ -27,7 +27,8 @@ import org.stargate.rest.json.KVCache;
 public class KeyValueResource {
   @Inject StargateBridgeClient bridge;
   @Inject KVCassandra kvcassandra;
-  @Inject KVCache kvcache;
+  // @Inject KVCache kvcache;
+  @Inject KVCache2 kvcache2;
   ObjectMapper objectMapper = new ObjectMapper();
   
   public KeyValueResource() {}
@@ -286,7 +287,8 @@ public class KeyValueResource {
     // first add this to the Cassandra database, then add to cache if no error
     KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
     if (response.status_code == 201) {
-      kvcache.create(key, value, db_name, table_name, type);
+      // kvcache.create(key, value, db_name, table_name, type);
+      kvcache2.put(key, value, db_name, table_name);
     }
 
     return response;
@@ -313,18 +315,21 @@ public class KeyValueResource {
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
 
-    KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-    if (slot == null) {
+    // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
+    JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+    if (value == null) {
       // Does not exists in cache, read from cassandra first
       KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
       if (response.status_code == 200) { 
-        JsonNode value = response.body.getJsonBody();
+        value = response.body.getJsonBody();
         // add to cache after fetch from cassandra
-        kvcache.create(kvPair.key, value, db_name, table_name, response.body.type);
+        // kvcache.create(kvPair.key, value, db_name, table_name, response.body.type);
+        kvcache2.put(kvPair.key, value, db_name, table_name);
       }
       return response;
     } else {
-      return new KVResponse(200, "The key '" + kvPair.key + "' has a value of " + kvcache.read(kvPair.key, db_name, table_name).getValue());
+      return new KVResponse(200, "The key '" + kvPair.key + "' has a value of " + value);
+      //kvcache.read(kvPair.key, db_name, table_name).getValue());
     }
   }
 
@@ -367,7 +372,8 @@ public class KeyValueResource {
     // first update to cassandra to achieve consistency
     KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
     if (response.status_code == 200) {
-      kvcache.update(key, value, db_name, table_name, type);
+      kvcache2.put(key, value, db_name, table_name);
+      // kvcache.update(key, value, db_name, table_name, type);
     }
     return response;
   }
@@ -396,9 +402,12 @@ public class KeyValueResource {
     }
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     if (response.status_code==200) {
-      KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-      if (slot != null) {
-        kvcache.delete(kvPair.key, db_name, table_name);
+      // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
+      JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+      // if (slot != null) {
+      if (value != null) {
+        // kvcache.delete(kvPair.key, db_name, table_name);
+        kvcache2.delete(kvPair.key, db_name, table_name);
       }
     }
     
