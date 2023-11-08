@@ -14,7 +14,6 @@ import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
-import org.stargate.rest.json.KVCache;
 
 
 
@@ -28,7 +27,7 @@ public class KeyValueResource {
   @Inject StargateBridgeClient bridge;
   @Inject KVCassandra kvcassandra;
   // @Inject KVCache kvcache;
-  @Inject KVCache2 kvcache2;
+  @Inject KVCache kvcache;
   ObjectMapper objectMapper = new ObjectMapper();
   
   public KeyValueResource() {}
@@ -287,8 +286,9 @@ public class KeyValueResource {
     // first add this to the Cassandra database, then add to cache if no error
     KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
     if (response.status_code == 201) {
+      kvcache.put(key, value, key, table_name, type);
       // kvcache.create(key, value, db_name, table_name, type);
-      kvcache2.put(key, value, db_name, table_name);
+      // kvcache2.put(key, value, db_name, table_name);
     }
 
     return response;
@@ -316,7 +316,8 @@ public class KeyValueResource {
     }
 
     // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-    JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+    // JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+    JsonNode value = kvcache.get(kvPair.key, db_name, table_name);
     if (value == null) {
       // Does not exists in cache, read from cassandra first
       KVResponse response = kvcassandra.getVal(db_name, table_name, kvPair.key);
@@ -324,7 +325,8 @@ public class KeyValueResource {
         value = response.body.getJsonBody();
         // add to cache after fetch from cassandra
         // kvcache.create(kvPair.key, value, db_name, table_name, response.body.type);
-        kvcache2.put(kvPair.key, value, db_name, table_name);
+        // kvcache2.put(kvPair.key, value, db_name, table_name);
+        kvcache.put(kvPair.key, value, db_name, table_name, response.body.type);
       }
       return response;
     } else {
@@ -372,7 +374,8 @@ public class KeyValueResource {
     // first update to cassandra to achieve consistency
     KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
     if (response.status_code == 200) {
-      kvcache2.put(key, value, db_name, table_name);
+      kvcache.put(key, value, db_name, table_name, type);
+      // kvcache2.put(key, value, db_name, table_name);
       // kvcache.update(key, value, db_name, table_name, type);
     }
     return response;
@@ -403,14 +406,88 @@ public class KeyValueResource {
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     if (response.status_code==200) {
       // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-      JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+      // JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
+      JsonNode value = kvcache.get(kvPair.key, db_name, table_name);
       // if (slot != null) {
       if (value != null) {
         // kvcache.delete(kvPair.key, db_name, table_name);
-        kvcache2.delete(kvPair.key, db_name, table_name);
+        // kvcache2.delete(kvPair.key, db_name, table_name);
+        kvcache.delete(kvPair.key, db_name, table_name);
       }
     }
     
     return response;
+  }
+
+  // new APIs for cache
+  // http://{{host_url}}:8083/resetcache PUT, 
+  // {
+  //   "max_size": "1000",
+  //   "eviction_policy": "FIFO"
+  // } 
+  // need to validate max_size is a positive integer and eviction_policy is FIFO or RANDOM
+  /**
+   * @param json_body
+   * @return
+   * @throws KvstoreException
+   * @throws JsonProcessingException
+   */
+  @PUT
+  @Path("resetcache")
+  @Produces(MediaType.APPLICATION_JSON)
+  @Consumes(MediaType.APPLICATION_JSON)
+  public KVResponse resetCache(String json_body)
+      throws KvstoreException, JsonProcessingException {
+    JsonNode jsonNode = objectMapper.readTree(json_body);
+    int max_size;
+    String eviction_policy;
+
+    // validate max_size and eviction_policy
+    try {
+      max_size = jsonNode.get("max_size").asInt();
+      eviction_policy = jsonNode.get("eviction_policy").asText();
+    } catch (Exception ex) {
+      return new KVResponse(
+          400, "Bad request, must provide valid max_size and eviction_policy.");
+    }
+    if (max_size <= 0) {
+      return new KVResponse(400, "Bad request, max_size must be a positive integer.");
+    }
+    if (!eviction_policy.equals("FIFO") && !eviction_policy.equals("RANDOM")) {
+      return new KVResponse(
+          400, "Bad request, eviction_policy must be FIFO or RANDOM.");
+    }
+
+    // translate eviction_policy to EvictionPolicy
+    EvictionPolicy policy;
+    if (eviction_policy.equals("FIFO")) {
+      policy = EvictionPolicy.FIFO;
+    } else {
+      policy = EvictionPolicy.RANDOM;
+    }
+    kvcache.resetCache(max_size, policy);
+    return new KVResponse(200, "Cache reset successfully.");
+  }
+
+  // http://{{host_url}}:8083/getcachestatus
+  // get function, get the status of the cache
+  /**
+   * @return
+   * @throws KvstoreException
+   */
+  @GET
+  @Path("getcachestatus")
+  @Produces(MediaType.APPLICATION_JSON)
+  public KVResponse getCacheStatus() throws KvstoreException {
+    String response = kvcache.getCacheInfo();
+    return new KVResponse(200, response);
+  }
+
+  @GET
+  @Path("helloworld")
+  @Produces(MediaType.APPLICATION_JSON)
+  @Consumes(MediaType.APPLICATION_JSON)
+  public KVResponse getKeyVal() throws KvstoreException {
+    return new KVResponse(200, "Hello World!");
   }
 }

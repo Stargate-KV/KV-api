@@ -1,4 +1,4 @@
-package org.stargate.rest.json;
+package org.stargate.rest.json.Cache;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.*;
@@ -7,9 +7,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javax.enterprise.context.ApplicationScoped;
+// import javax.enterprise.context.ApplicationScoped;
 
-import org.checkerframework.checker.units.qual.s;
+// import org.checkerframework.checker.units.qual.s;
 
 /*
    ADVANED VERSION OF KVCache.java
@@ -20,25 +20,25 @@ import org.checkerframework.checker.units.qual.s;
    4. simple random eviction
 */
 
-@ApplicationScoped
-public class KVCache2 {
+// @ApplicationScoped
+public class RandomCache {
 
   private final int maxSize;
   private final Map<String, Integer> hashToIndexMap;
-  private final List<KVCacheSlot2> cacheSlots;
+  private final List<RandomCacheSlot> cacheSlots;
   // lock for each slot
   private final List<Lock> locks;
   private final Lock sizeLock;
   private int size;
   Random rand;
 
-  public KVCache2() {
-    this.maxSize = 1000;
+  public RandomCache(int maxSize) {
+    this.maxSize = maxSize;
     this.hashToIndexMap = new ConcurrentHashMap<>();
     // create an array of cacheSlots with size maxSize
     this.cacheSlots =
         IntStream.range(0, maxSize)
-            .mapToObj(i -> new KVCacheSlot2(null, null))
+            .mapToObj(i -> new RandomCacheSlot(null, null))
             .collect(Collectors.toList());
 
     this.locks =
@@ -79,7 +79,7 @@ public class KVCache2 {
     // if index is not the last element, swap the last element to index
     if (index != size) {
       locks.get(size).lock();
-      KVCacheSlot2 lastElement = cacheSlots.get(size);
+      RandomCacheSlot lastElement = cacheSlots.get(size);
       cacheSlots.set(index, lastElement);
       String lastHashkey = lastElement.getHashKey();
       hashToIndexMap.put(lastHashkey, index);
@@ -118,16 +118,15 @@ public class KVCache2 {
         _delete(index);
     }
     // add new key value pair in size
-    cacheSlots.set(size, new KVCacheSlot2(hashkey, value));
+    cacheSlots.set(size, new RandomCacheSlot(hashkey, value));
     hashToIndexMap.put(hashkey, size++);
     sizeLock.unlock();
   }
 
-  public void printCache() {
-    // Print cacheSlots List
-    System.out.println("cacheSlots: ");
-    for (KVCacheSlot2 slot : cacheSlots) {
-      System.out.println(slot);
-    }
+  public String getCacheInfo() {
+    return "Random Cache: eviction policy: Random, maxSlots: "
+            + maxSize
+            + ", current size: "
+            + size;
   }
 }

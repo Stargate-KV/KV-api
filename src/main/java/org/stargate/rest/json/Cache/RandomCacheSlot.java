@@ -1,13 +1,15 @@
-package org.stargate.rest.json;
+package org.stargate.rest.json.Cache;
+
+import org.stargate.rest.json.KVDataType;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-public class KVCacheSlot2 {
+public class RandomCacheSlot {
   private String hashKey;
   private JsonNode value;
   private KVDataType valueType;
 
-  public KVCacheSlot2(String hashKey, JsonNode value) {
+  public RandomCacheSlot(String hashKey, JsonNode value) {
     this.hashKey = hashKey;
     this.value = value;
   }
