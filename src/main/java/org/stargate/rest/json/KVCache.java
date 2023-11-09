@@ -20,7 +20,7 @@ enum EvictionPolicy {
 
 @ApplicationScoped
 public class KVCache {
-  private final int maxSize = 1000;
+  private int maxSize = 1000;
 
   // define FIFO Cache and Random Cache inside KVCache
   private FIFOCache fifoCache;
@@ -104,10 +104,17 @@ public class KVCache {
   }
 
   public void resetCache(int maxSize, EvictionPolicy evictionPolicy) {
+    if(maxSize == -1) { // clear the cache, remain the same maxSize
+      maxSize = this.maxSize;
+    }
+    if(evictionPolicy == null) { // clear the cache, remain the same policy
+      evictionPolicy = this.evictionPolicy;
+    }
     lock.writeLock().lock();
     try {
       // clear the cache, reset the maxSize and eviction policy
       this.evictionPolicy = evictionPolicy;
+      this.maxSize = maxSize;
       switch (evictionPolicy) {
         case FIFO:
           this.fifoCache = new FIFOCache(maxSize);

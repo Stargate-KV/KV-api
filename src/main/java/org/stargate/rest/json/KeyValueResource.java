@@ -67,6 +67,8 @@ public class KeyValueResource {
       return new KVResponse(400, "Bad request, must provide a valid database name.");
     }
     KVResponse response = kvcassandra.deleteKeyspace(db_name);
+    // clear cache
+    kvcache.resetCache(-1, null);
     return response;
   }
 
@@ -110,6 +112,7 @@ public class KeyValueResource {
       return new KVResponse(400, "Bad request, must provide valid database name and table name.");
     }
     KVResponse response = kvcassandra.deleteTable(db_name, table_name);
+    kvcache.resetCache(-1, null);
     return response;
   }
 
