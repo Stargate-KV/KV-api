@@ -37,7 +37,12 @@ export SGTAG=v2
 export PROJTAG=v1.0.0-SNAPSHOT
 docker-compose up -d kvstoreapi
 ```
-
+### 运行测试
+看benchmark文件夹下的readme
+```
+cd ~/benchmark/nosqlbenchv5/
+java -jar nb5.jar ./http-rest-starter.yaml --report-csv-to my_metrics_dir
+```
 ### CQL 测试语法
 
 + 开启cqlsh：`docker exec -it cass40-stargate_cassandra-1_1 cqlsh`

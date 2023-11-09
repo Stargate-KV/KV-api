@@ -283,12 +283,25 @@ public class KeyValueResource {
    
     KVDataType type = getTypeForRequest(jsonNode, value);
     
+    JsonNode old_value = kvcache.get(key, db_name, table_name);
+    if(old_value != null) {
+    	if (old_value.equals(value)) {
+        return new KVResponse(409, "The key '" + key + "' already exists.");
+    	}
+    }
+
     // first add this to the Cassandra database, then add to cache if no error
     KVResponse response = kvcassandra.putKeyVal(db_name, table_name, key, value, type);
     if (response.status_code == 201) {
       kvcache.put(key, value, key, table_name, type);
-      // kvcache.create(key, value, db_name, table_name, type);
-      // kvcache2.put(key, value, db_name, table_name);
+    } else {
+      // find the old value from cassandra
+      KVResponse old_response = kvcassandra.getVal(db_name, table_name, key);
+      if (old_response.status_code == 200) {
+        JsonNode old_value_from_cassandra = old_response.body.getJsonBody();
+        // add to cache after fetch from cassandra
+        kvcache.put(key, old_value_from_cassandra, db_name, table_name, old_response.body.type);
+      }
     }
 
     return response;
@@ -315,8 +328,6 @@ public class KeyValueResource {
           400, "Bad request, must provide valid database, table name and key value pair.");
     }
 
-    // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-    // JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
     JsonNode value = kvcache.get(kvPair.key, db_name, table_name);
     if (value == null) {
       // Does not exists in cache, read from cassandra first
@@ -324,14 +335,11 @@ public class KeyValueResource {
       if (response.status_code == 200) { 
         value = response.body.getJsonBody();
         // add to cache after fetch from cassandra
-        // kvcache.create(kvPair.key, value, db_name, table_name, response.body.type);
-        // kvcache2.put(kvPair.key, value, db_name, table_name);
         kvcache.put(kvPair.key, value, db_name, table_name, response.body.type);
       }
       return response;
     } else {
       return new KVResponse(200, "The key '" + kvPair.key + "' has a value of " + value);
-      //kvcache.read(kvPair.key, db_name, table_name).getValue());
     }
   }
 
@@ -375,8 +383,6 @@ public class KeyValueResource {
     KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
     if (response.status_code == 200) {
       kvcache.put(key, value, db_name, table_name, type);
-      // kvcache2.put(key, value, db_name, table_name);
-      // kvcache.update(key, value, db_name, table_name, type);
     }
     return response;
   }
@@ -453,17 +459,19 @@ public class KeyValueResource {
     if (max_size <= 0) {
       return new KVResponse(400, "Bad request, max_size must be a positive integer.");
     }
-    if (!eviction_policy.equals("FIFO") && !eviction_policy.equals("RANDOM")) {
+    if (!eviction_policy.equals("FIFO") && !eviction_policy.equals("RANDOM") && !eviction_policy.equals("NONE")) {
       return new KVResponse(
-          400, "Bad request, eviction_policy must be FIFO or RANDOM.");
+          400, "Bad request, eviction_policy must be FIFO or RANDOM or NONE.");
     }
 
     // translate eviction_policy to EvictionPolicy
     EvictionPolicy policy;
     if (eviction_policy.equals("FIFO")) {
       policy = EvictionPolicy.FIFO;
-    } else {
+    } else if (eviction_policy.equals("RANDOM")) {
       policy = EvictionPolicy.RANDOM;
+    } else {
+      policy = EvictionPolicy.NONE;
     }
     kvcache.resetCache(max_size, policy);
     return new KVResponse(200, "Cache reset successfully.");

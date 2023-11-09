@@ -12,6 +12,7 @@ import org.stargate.rest.json.Cache.RandomCache;
 
 // define enum of EvcitionPolicy, FIFO, RANDOM and NONE
 enum EvictionPolicy {
+  NONE,
   FIFO,
   RANDOM
 }
@@ -41,6 +42,8 @@ public class KVCache {
           return fifoCache.get(key, keyspace, table);
         case RANDOM:
           return randomCache.get(key, keyspace, table);
+        case NONE:
+          return null;
         default:
           break;
       }
@@ -60,6 +63,8 @@ public class KVCache {
           return fifoCache.delete(key, keyspace, table);
         case RANDOM:
           return randomCache.delete(key, keyspace, table);
+        case NONE:
+          return true;  
         default:
           break;
       }
@@ -78,6 +83,8 @@ public class KVCache {
           break;
         case RANDOM:
           randomCache.put(key, value, keyspace, table);
+          break;
+        case NONE:
           break;
         default:
           break;
@@ -101,6 +108,10 @@ public class KVCache {
           this.randomCache = new RandomCache(maxSize);
           this.fifoCache = null;
           break;
+        case NONE:
+          this.fifoCache = null;
+          this.randomCache = null;
+          break;
       }
     } finally {
       lock.writeLock().unlock();
@@ -115,6 +126,8 @@ public class KVCache {
           return fifoCache.getCacheInfo();
         case RANDOM:
           return randomCache.getCacheInfo();
+        case NONE:
+          return "No cache";
         default:
           break;
       }
