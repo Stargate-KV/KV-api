@@ -459,10 +459,10 @@ public class KeyValueResource {
       return new KVResponse(
           400, "Bad request, must provide valid max_size and eviction_policy.");
     }
-    if (max_size <= 0) {
+    if (max_size == 0 || max_size < -1) {
       return new KVResponse(400, "Bad request, max_size must be a positive integer.");
     }
-    if (!eviction_policy.equals("FIFO") && !eviction_policy.equals("RANDOM") && !eviction_policy.equals("NONE") && !eviction_policy.equals("LRU")) {
+    if (!eviction_policy.equals("FIFO") && !eviction_policy.equals("RANDOM") && !eviction_policy.equals("NONE") && !eviction_policy.equals("LRU") && !eviction_policy.equals("NOCHANGE")) {
       return new KVResponse(
           400, "Bad request, eviction_policy must be FIFO or RANDOM or NONE.");
     }
@@ -475,8 +475,10 @@ public class KeyValueResource {
       policy = EvictionPolicy.RANDOM;
     } else if (eviction_policy.equals("LRU")) {
       policy = EvictionPolicy.LRU;
-    } else {
+    } else if (eviction_policy.equals("NONE")) {
       policy = EvictionPolicy.NONE;
+    } else {
+      policy = null;
     }
     kvcache.resetCache(max_size, policy);
     return new KVResponse(200, "Cache reset successfully. Cache status: " + kvcache.getCacheInfo());

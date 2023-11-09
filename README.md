@@ -62,7 +62,7 @@ curl -X 'GET' \
 ```
 
 设置policy/maxSlots:
-
+当只reset，不修改policy或者maxSlots时，max_size = -1, eviction_policy = NOCHANGE
 ```
 curl -X 'PUT' \
   'http://localhost:8083/kvstore/v1/resetcache' \
