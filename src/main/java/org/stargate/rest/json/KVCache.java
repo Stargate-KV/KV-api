@@ -9,12 +9,13 @@ import javax.enterprise.context.ApplicationScoped;
 
 import org.stargate.rest.json.Cache.FIFOCache;
 import org.stargate.rest.json.Cache.RandomCache;
-
+import org.stargate.rest.json.Cache.LRUCache;
 // define enum of EvcitionPolicy, FIFO, RANDOM and NONE
 enum EvictionPolicy {
   NONE,
   FIFO,
-  RANDOM
+  RANDOM,
+  LRU
 }
 
 @ApplicationScoped
@@ -24,6 +25,7 @@ public class KVCache {
   // define FIFO Cache and Random Cache inside KVCache
   private FIFOCache fifoCache;
   private RandomCache randomCache;
+  private LRUCache lruCache;
   // set default eviction policy to FIFO
   private EvictionPolicy evictionPolicy = EvictionPolicy.FIFO;
 
@@ -42,6 +44,8 @@ public class KVCache {
           return fifoCache.get(key, keyspace, table);
         case RANDOM:
           return randomCache.get(key, keyspace, table);
+        case LRU:
+          return lruCache.get(key, keyspace, table);
         case NONE:
           return null;
         default:
@@ -63,6 +67,8 @@ public class KVCache {
           return fifoCache.delete(key, keyspace, table);
         case RANDOM:
           return randomCache.delete(key, keyspace, table);
+        case LRU:
+          return lruCache.delete(key, keyspace, table);
         case NONE:
           return true;  
         default:
@@ -84,6 +90,9 @@ public class KVCache {
         case RANDOM:
           randomCache.put(key, value, keyspace, table);
           break;
+        case LRU:
+          lruCache.put(key, value, keyspace, table, valueType);
+          break;
         case NONE:
           break;
         default:
@@ -103,14 +112,24 @@ public class KVCache {
         case FIFO:
           this.fifoCache = new FIFOCache(maxSize);
           this.randomCache = null;
+          this.lruCache = null;
           break;
         case RANDOM:
           this.randomCache = new RandomCache(maxSize);
           this.fifoCache = null;
+          this.lruCache = null;
+          break;
+        case LRU:
+          this.lruCache = new LRUCache(maxSize);
+          this.fifoCache = null;
+          this.randomCache = null;
           break;
         case NONE:
           this.fifoCache = null;
           this.randomCache = null;
+          this.lruCache = null;
+          break;
+        default:
           break;
       }
     } finally {
@@ -126,6 +145,8 @@ public class KVCache {
           return fifoCache.getCacheInfo();
         case RANDOM:
           return randomCache.getCacheInfo();
+        case LRU:
+          return lruCache.getCacheInfo();
         case NONE:
           return "No cache";
         default:
