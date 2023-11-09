@@ -23,6 +23,8 @@ public class LRUCache {
     private final Map<Integer, Integer> hashToIndexMap; // Map of hash to index
     private final LinkedHashMap<Integer, Boolean> lruOrder; // To implement FIFO eviction, elements are hash values
     
+    private long hitCount = 0;
+    private long totalRead = 0;
 
     public LRUCache(int maxSlots) {
         // long freeMemory = Runtime.getRuntime().freeMemory();
@@ -42,6 +44,7 @@ public class LRUCache {
     }
 
     public JsonNode get(String key, String keyspace, String table) {
+        totalRead++;
         int hash = computeHash(key, keyspace, table);
         int index = hashToIndexMap.getOrDefault(hash, -1);
         if (index != -1) {
@@ -56,7 +59,11 @@ public class LRUCache {
                 lruOrder.put(hash, true); // Update LRU order
             }
             // printCache();
-            return slot.isUsed() ? slot.getValue() : null;
+            if (slot.isUsed()) {
+                hitCount++;
+                return slot.getValue();
+            }
+            return null;
         }
         
         return null;
@@ -207,7 +214,9 @@ public class LRUCache {
     return "LRU Cache: eviction policy: LRU, maxSlots: "
             + maxSlots
             + ", current size: "
-            + hashToIndexMap.size();
+            + hashToIndexMap.size()
+            + ", hit ratio: "
+            + String.format("%.2f", (double) hitCount / totalRead * 100) + "%";
   }
     
 }

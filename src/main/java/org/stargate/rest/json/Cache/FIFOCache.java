@@ -35,6 +35,9 @@ public class FIFOCache {
   private final Map<Integer, Integer> hashToIndexMap; // Map of hash to index
   private final Queue<Integer> fifoOrder; // To implement FIFO eviction, elements are hash values
 
+  private long hitCount = 0;
+  private long totalRead = 0;
+
   public FIFOCache(int maxSlots) {
     // long freeMemory = Runtime.getRuntime().freeMemory();
     this.maxSlots = maxSlots;
@@ -58,6 +61,7 @@ public class FIFOCache {
   }
 
   public JsonNode get(String key, String keyspace, String table) {
+    totalRead++;
     int hash = computeHash(key, keyspace, table);
     int index = hashToIndexMap.getOrDefault(hash, -1);
     if (index != -1) {
@@ -68,7 +72,11 @@ public class FIFOCache {
       if (slotHashvalue != hash) {
         return null;
       }
-      return slot.isUsed() ? slot.getValue() : null;
+      if (slot.isUsed()) {
+        hitCount++;
+        return slot.getValue();
+      }
+      return null;
     }
     return null;
   }
@@ -217,7 +225,9 @@ public class FIFOCache {
     return  "FIFO Cache: eviction policy: FIFO, maxSlots: "
             + maxSlots
             + ", current size: "
-            + hashToIndexMap.size();
+            + hashToIndexMap.size()
+            + ", hit ratio: "
+            + String.format("%.2f", (double) hitCount / totalRead * 100) + "%";
     // Print cacheSlots List
     // System.out.println("cacheSlots: ");
     // for (KVCacheSlot slot : cacheSlots) {

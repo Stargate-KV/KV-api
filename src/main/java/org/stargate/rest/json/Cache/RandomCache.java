@@ -32,6 +32,9 @@ public class RandomCache {
   private int size;
   Random rand;
 
+  long hitCount = 0;
+  long totalRead = 0;
+
   public RandomCache(int maxSize) {
     this.maxSize = maxSize;
     this.hashToIndexMap = new ConcurrentHashMap<>();
@@ -57,6 +60,7 @@ public class RandomCache {
   }
 
   public JsonNode get(String key, String keyspace, String table) { // get function
+    totalRead++;
     String hashkey = computeHash(key, keyspace, table);
     int index = hashToIndexMap.getOrDefault(hashkey, -1);
     if (index == -1) {
@@ -66,7 +70,7 @@ public class RandomCache {
     locks.get(index).lock();
     JsonNode result = cacheSlots.get(index).getValue();
     locks.get(index).unlock();
-    
+    hitCount++;
     return result;
   }
 
@@ -127,6 +131,9 @@ public class RandomCache {
     return "Random Cache: eviction policy: Random, maxSlots: "
             + maxSize
             + ", current size: "
-            + size;
+            + size
+            + ", hit ratio:"
+            + ", hit ratio: "
+            + String.format("%.2f", (double) hitCount / totalRead * 100) + "%";
   }
 }
