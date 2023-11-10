@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import java.util.*;
 import org.json.JSONObject;
 import java.io.IOException;
 import java.net.URI;
@@ -465,5 +466,66 @@ public class KeyValueResource {
       e.printStackTrace();
     }
     return null;
+  }
+  
+  @PUT
+  @Path("resetcache")
+  @Produces(MediaType.APPLICATION_JSON)
+  @Consumes(MediaType.APPLICATION_JSON)
+  public Response resetCache(String json_body, @HeaderParam(value = "X-Cassandra-Token") String token){
+	  try {
+		  HttpResponse<String> response;
+		  for (String server: servers) {
+		      HttpRequest request =
+		          HttpRequest.newBuilder()
+		              .uri(new URI(server + "/kvstore/v1/resetcache"))
+		              .header("X-Cassandra-Token", token)
+		              .header("content-type", "application/json")
+		              .PUT(HttpRequest.BodyPublishers.ofString(json_body))
+		              .build();
+		       response =
+		          HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+		  }
+	      return Response.ok().build();
+	    } catch (URISyntaxException e1) {
+	      // TODO Auto-generated catch block
+	      e1.printStackTrace();
+	    } catch (IOException e) {
+	      e.printStackTrace();
+	    } catch (InterruptedException e) {
+	      e.printStackTrace();
+	    }
+	    return null;
+  }
+  
+  
+  @GET
+  @Path("getcachestatus")
+  @Produces(MediaType.APPLICATION_JSON)
+  public Response getCacheStatus(@HeaderParam(value = "X-Cassandra-Token") String token){
+	  try {
+		  List<String> res = new ArrayList<>();
+		  for (String server: servers) {
+		      HttpRequest request =
+		          HttpRequest.newBuilder()
+		              .uri(new URI(server + "/kvstore/v1/getcachestatus"))
+		              .header("X-Cassandra-Token", token)
+		              .GET()
+		              .build();
+		      HttpResponse<String> response =
+		          HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+		       res.add(response.body());
+		  }
+		  
+	      return Response.status(Response.Status.OK).entity(String.join("|", res)).build();
+	    } catch (URISyntaxException e1) {
+	      // TODO Auto-generated catch block
+	      e1.printStackTrace();
+	    } catch (IOException e) {
+	      e.printStackTrace();
+	    } catch (InterruptedException e) {
+	      e.printStackTrace();
+	    }
+	    return null;
   }
 }
