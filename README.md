@@ -22,22 +22,63 @@ sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
 
 ### 仅修改kvapi如何重启
 
-修改文件后在`~/rest-jet-value-store/` 下运行:
+`cd ~/rest-jet-value-store/`
 
-+ format：`./mvnw com.spotify.fmt:fmt-maven-plugin:format`
+format and build image:
 
-+ build image: `sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083`
-+ 进入rest-key-value-store-master directory, build image: 'sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083'
+```
+./mvnw com.spotify.fmt:fmt-maven-plugin:format
+sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083
+```
 
-+ 更改kvstoreapi，在`~/rest-key-value-store/docker-compose/cassandra-4.0`重新build：
+进入rest-key-value-store-master directory, build image:
+```
+sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083
+```
 
-  + `docker stop kvstoreapi`
+更改kvstoreapi后重新运行：
 
-  + `export SGTAG=v2`
+```
+cd ~/rest-key-value-store/docker-compose/cassandra-4.0
+docker stop cass40-stargate_kvstoreapi_1
+export SGTAG=v2
+export PROJTAG=v1.0.0-SNAPSHOT
+docker-compose up -d kvstoreapi
+```
 
-    `export PROJTAG=v1.0.0-SNAPSHOT`
+### 运行测试
 
-  + `docker-compose up kvstoreapi`
+```
+cd ~/benchmark/nosqlbenchv5/
+java -jar nb5.jar ./http-rest-starter.yaml --report-csv-to my_metrics_dir
+```
+
+详情看benchmark文件夹下的readme
+
+### Cache 测试
+
+查看cache status: **NONE|RANDOM|FIFO|LRU**, maxSlots, current size, **hit ratio**
+
+```
+curl -X 'GET' \
+  'http://localhost:8083/kvstore/v1/getcachestatus' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: 9808e5e0-1c5c-46be-a0c1-e2d1eb16bb10'
+```
+
+设置policy/maxSlots:
+当只reset，不修改policy或者maxSlots时，max_size = -1, eviction_policy = NOCHANGE
+```
+curl -X 'PUT' \
+  'http://localhost:8083/kvstore/v1/resetcache' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: 9808e5e0-1c5c-46be-a0c1-e2d1eb16bb10' \
+  -d '{
+  "max_size": "1000",
+  "eviction_policy": "LRU"
+}'
+```
 
 ### CQL 测试语法
 
@@ -49,12 +90,12 @@ sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
 
 + 查看docker image: `docker images / docker image ls`
 + 查看正在运行的docker containe：`docker container ls`
-+ 查看某container的port: `docker port <container-name>` 
++ 查看某container的port: `docker port <container-name>`
 
 ### HTTP 测试
 
 ```
-//get token 
+//get token
 curl -X 'POST' \
   'http://localhost:8081/v1/auth/token/generate' \
   -H 'accept: application/json' \

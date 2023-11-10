@@ -1,8 +1,10 @@
-package org.stargate.rest.json;
+package org.stargate.rest.json.Cache;
+
+import org.stargate.rest.json.KVDataType;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-public class KVCacheSlot {
+public class FIFOCacheSlot {
   private String key;
   public JsonNode value;
   private String keyspace;
@@ -11,7 +13,7 @@ public class KVCacheSlot {
   private boolean used;
   private int hashvalue;
 
-  public KVCacheSlot(
+  public FIFOCacheSlot(
       String key,
       JsonNode value,
       String keyspace,

@@ -1,6 +1,5 @@
 package org.stargate.rest.json;
 
-
 public class KeyValPair {
 
   public String key;

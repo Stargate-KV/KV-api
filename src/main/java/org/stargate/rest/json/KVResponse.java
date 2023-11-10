@@ -1,6 +1,5 @@
 package org.stargate.rest.json;
 
-
 public class KVResponse {
   // public Integer db_id;
   public int status_code = 200;
