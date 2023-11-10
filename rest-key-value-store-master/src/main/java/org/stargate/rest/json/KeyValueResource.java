@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import org.json.JSONObject;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -11,6 +13,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import javax.enterprise.context.ApplicationScoped;
+import javax.json.JsonObject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
@@ -22,7 +25,7 @@ public class KeyValueResource {
   ConsistentHashing consistentHashing;
   String[] servers;
   ObjectMapper objectMapper = new ObjectMapper();
-
+  String resetCache;
   public KeyValueResource() {
     servers =
         new String[] {"http://172.18.0.1:8086", "http://172.18.0.1:8087", "http://172.18.0.1:8088"};
@@ -31,6 +34,10 @@ public class KeyValueResource {
     for (String s : servers) {
       consistentHashing.addServer(s);
     }
+    JSONObject json = new JSONObject();
+    json.put("max_size", "-1");
+    json.put("eviction_policy", "NOCHANGE");
+    resetCache = json.toString();
   }
 
   // create and delete databases
@@ -99,6 +106,17 @@ public class KeyValueResource {
               .build();
       HttpResponse<String> response =
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+      for (String s: servers) {
+    	  if (!server.equals(s)) {
+    		  request =
+    		          HttpRequest.newBuilder()
+    		              .uri(new URI(server + "/kvstore/v1/resetcache"))
+    		              .header("X-Cassandra-Token", token)
+    		              .PUT(HttpRequest.BodyPublishers.ofString(resetCache))
+    		              .build();
+              HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    	  }
+      }
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
       // TODO Auto-generated catch block
@@ -171,9 +189,21 @@ public class KeyValueResource {
               .uri(new URI(server + "/kvstore/v1/" + db_name + "/" + table_name))
               .header("X-Cassandra-Token", token)
               .DELETE()
-              .build();
-      HttpResponse<String> response =
+	              .build();
+	      HttpResponse<String> response =
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+	   
+      for (String s: servers) {
+    	  if (!server.equals(s)) {
+    		  request =
+    		          HttpRequest.newBuilder()
+    		              .uri(new URI(server + "/kvstore/v1/resetcache"))
+    		              .header("X-Cassandra-Token", token)
+    		              .PUT(HttpRequest.BodyPublishers.ofString(resetCache))
+    		              .build();
+              HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    	  }
+      }
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
       // TODO Auto-generated catch block
