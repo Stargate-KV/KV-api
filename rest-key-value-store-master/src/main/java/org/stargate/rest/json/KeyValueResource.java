@@ -29,7 +29,7 @@ public class KeyValueResource {
   String resetCache;
   public KeyValueResource() {
     servers =
-        new String[] {"http://172.18.0.1:8086", "http://172.18.0.1:8087", "http://172.18.0.1:8088"};
+        new String[] {"http://host.docker.internal:8086", "http://host.docker.internal:8087", "http://host.docker.internal:8088"};
 
     consistentHashing = new ConsistentHashing(servers.length);
     for (String s : servers) {

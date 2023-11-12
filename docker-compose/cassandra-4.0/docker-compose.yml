@@ -10,34 +10,52 @@ services:
       - HEAP_NEWSIZE=128M
       - MAX_HEAP_SIZE=1024M
       - CASSANDRA_CLUSTER_NAME=c4-${CASSTAG}-cluster
+    healthcheck:
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
   cassandra-2:
     image: cassandra:${CASSTAG}
     networks:
       - stargate
     mem_limit: 2G
     depends_on:
-      - cassandra-1
+      cassandra-1:
+        condition: service_healthy
     environment:
       - HEAP_NEWSIZE=128M
       - MAX_HEAP_SIZE=1024M
       - CASSANDRA_SEEDS=cassandra-1
       - CASSANDRA_CLUSTER_NAME=c4-${CASSTAG}-cluster
+    healthcheck:
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
   cassandra-3:
     image: cassandra:${CASSTAG}
     networks:
       - stargate
     mem_limit: 2G
     depends_on:
-      - cassandra-2
+      cassandra-2:
+        condition: service_healthy
     environment:
       - HEAP_NEWSIZE=128M
       - MAX_HEAP_SIZE=1024M
       - CASSANDRA_SEEDS=cassandra-1
       - CASSANDRA_CLUSTER_NAME=c4-${CASSTAG}-cluster
+    healthcheck:
+      test: [ "CMD", "cqlsh", "-u cassandra", "-p cassandra" ,"-e describe keyspaces" ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
   coordinator:
     image: stargateio/coordinator-4_0:${SGTAG}
     depends_on:
-      - cassandra-1
+      cassandra-3:
+        condition: service_healthy
     networks:
       - stargate
     ports:
@@ -54,11 +72,17 @@ services:
       - RACK_NAME=rack1
       - DATACENTER_NAME=datacenter1
       - ENABLE_AUTH=true
+    healthcheck:
+      test: curl -f http://localhost:8084/checker/readiness || exit 1
+      interval: 15s
+      timeout: 10s
+      retries: 10
 
   kvstoreapi-master:
     image: stargate-cmu/key-value-store-master:${PROJTAG}
     depends_on:
-      - coordinator
+      coordinator:
+        condition: service_healthy
     networks:
       - stargate
     ports:
@@ -69,10 +93,13 @@ services:
       - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
       - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
       - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   kvstoreapi-1:
     image: stargate-cmu/key-value-store:${PROJTAG}
     depends_on:
-      - kvstoreapi-master
+      -   kvstoreapi-master
     networks:
       - stargate
     ports:
@@ -84,32 +111,35 @@ services:
       - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
       - QUARKUS_LOG_LEVEL=${LOGLEVEL}
   kvstoreapi-2:
-      image: stargate-cmu/key-value-store:${PROJTAG}
-      depends_on:
-        -  kvstoreapi-1
-      networks:
-        - stargate
-      ports:
-        - "8086:8083"
-      mem_limit: 2G
-      environment:
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
-        - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
-        - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+    image: stargate-cmu/key-value-store:${PROJTAG}
+    depends_on:
+      - kvstoreapi-1
+
+    networks:
+      - stargate
+    ports:
+      - "8086:8083"
+    mem_limit: 2G
+    environment:
+      - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
+      - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+      - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
+      - QUARKUS_LOG_LEVEL=${LOGLEVEL}
   kvstoreapi-3:
-      image: stargate-cmu/key-value-store:${PROJTAG}
-      depends_on:
-        -  kvstoreapi-2
-      networks:
-        - stargate
-      ports:
-        - "8087:8083"
-      mem_limit: 2G
-      environment:
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
-        - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
-        - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
-        - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+    image: stargate-cmu/key-value-store:${PROJTAG}
+    depends_on:
+      - kvstoreapi-2
+
+    networks:
+      - stargate
+    ports:
+      - "8087:8083"
+    mem_limit: 2G
+    environment:
+      - QUARKUS_GRPC_CLIENTS_BRIDGE_HOST=coordinator
+      - QUARKUS_GRPC_CLIENTS_BRIDGE_PORT=8091
+      - QUARKUS_HTTP_ACCESS_LOG_ENABLED=${REQUESTLOG}
+      - QUARKUS_LOG_LEVEL=${LOGLEVEL}
+
 networks:
   stargate:
