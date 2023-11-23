@@ -44,7 +44,7 @@ docker-compose up -d kvstoreapi
 ### 运行测试
 
 ```
-cd ~/benchmark/nosqlbenchv5/
+cd ~/rest-key-value-store/benchmark/nosqlbenchv5/
 java -jar nb5.jar ./http-rest-starter.yaml --report-csv-to my_metrics_dir
 ```
 

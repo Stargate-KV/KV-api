@@ -385,10 +385,10 @@ public class KVCassandra {
             .build();
 
     try {
-      if (!isKeyInTable(keyspace_name, table_name, key)) {
-        return new KVResponse(
-            404, "The key '" + key + "' cannot be found in the current database.");
-      }
+      // if (!isKeyInTable(keyspace_name, table_name, key)) {
+      //   return new KVResponse(
+      //       404, "The key '" + key + "' cannot be found in the current database.");
+      // }
       bridge.executeQuery(final_query);
     } catch (StatusRuntimeException ex) {
       return handleStatusRuntimeException(ex, keyspace_name, table_name);
