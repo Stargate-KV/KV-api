@@ -38,5 +38,9 @@ release.properties
 # under directory named my_metrics_dir
 my_metrics_dir/
 # under log
+<<<<<<< HEAD
 log/
+=======
+logs/
+>>>>>>> origin/in-memory-cache
 *.jar
