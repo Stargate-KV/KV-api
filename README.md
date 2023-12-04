@@ -1,84 +1,197 @@
-### 运行cassandra + coordinator + kvapi
+### Running Cassandra + Coordinator + KVAPI
 
-第一次要先build docker image(参考下面的build image)
+**Initial Setup**:
 
-进入`~/rest-key-value-store/docker-compose/cassandra-4.0`
+- Build the Docker image first (refer to the 'build image' section below).
+- Navigate to `~/rest-key-value-store/docker-compose/cassandra-4.0`.
+- Run `./start_cas_40.sh`.
 
-运行`./start_cass_40.sh `
+**Docker Components**:
 
-docker 开启：
+- Cassandra nodes:
+  - `cass40-stargate_cassandra-1_1`
+  - `cass40-stargate_cassandra-2_1`
+  - `cass40-stargate_cassandra-3_1`
+- Dynamo DB API: `cass40-stargate_dynamoapi_1` (port: 8082)
+- Stargate Coordinator node: `cass40-stargate_coordinator_1` (port: 8081 for authentication, port: 9042 for clash)
 
-+ Cassandra node: cass40-stargate_cassandra-1_1(name)
-+ Cassandra node: cass40-stargate_cassandra-2_1
-+ Cassandra node: cass40-stargate_cassandra-3_1
-+ Dynamo DB API: cass40-stargate_dynamoapi_1(port: 8082)
-+ Stargate Coordinator node: cass40-stargate_coordinator_1(port: 8081 authentication, port: 9042 clash)
+**To Shut Down**:
 
-全部关闭：docker-compose down
+- Run `docker-compose down` to stop all services.
 
-start up kvstoreapi
-sudo PROJTAG=v1.0.0-SNAPSHOT SGTAG=v2 docker-compose up kvstoreapi
+### Restarting kvAPI After Modifications
 
+After modifying files in `~/rest-jet-value-store/`, execute the following:
 
-### 仅修改kvapi如何重启
+### Build KV API Image
 
-`cd ~/rest-jet-value-store/`
+- Format: `./mvnw com.spotify.fmt:fmt-maven-plugin:format`.
 
-format and build image:
+- Build image: `sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083`.
 
-```
-./mvnw com.spotify.fmt:fmt-maven-plugin:format
-sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083
-```
+- To rebuild kvstoreapi in 
 
-进入rest-key-value-store-master directory, build image:
-```
-sudo ./mvnw clean package -Dquarkus.container-image.build=true -DskipTestsls=true -Dquarkus.http.port=8083
-```
+  ```
+  ~/rest-key-value-store/docker-compose/cassandra-4.0
+  ```
 
-更改kvstoreapi后重新运行：
+  - Stop the service: `docker stop kvstoreapi`.
+  - Set environment variables:
+    - `export SGTAG=v2`
+    - `export PROJTAG=v1.0.0-SNAPSHOT`.
+  - Restart the service: `docker-compose up kvstoreapi`.
 
-```
-cd ~/rest-key-value-store/docker-compose/cassandra-4.0
-docker stop cass40-stargate_kvstoreapi_1
-export SGTAG=v2
-export PROJTAG=v1.0.0-SNAPSHOT
-docker-compose up -d kvstoreapi
-```
+### HTTP API
 
-### 运行测试
+#### Get authentication token
 
-```
-cd ~/benchmark/nosqlbenchv5/
-java -jar nb5.jar ./http-rest-starter.yaml --report-csv-to my_metrics_dir
-```
-
-详情看benchmark文件夹下的readme
-
-### Cache 测试
-
-查看cache status: **NONE|RANDOM|FIFO|LRU**, maxSlots, current size, **hit ratio**
-
-```
-curl -X 'GET' \
-  'http://localhost:8083/kvstore/v1/getcachestatus' \
+```json
+ curl -X 'POST' \
+  'http://localhost:8081/v1/auth/token/generate' \
   -H 'accept: application/json' \
-  -H 'X-Cassandra-Token: 9808e5e0-1c5c-46be-a0c1-e2d1eb16bb10'
-```
-
-设置policy/maxSlots:
-当只reset，不修改policy或者maxSlots时，max_size = -1, eviction_policy = NOCHANGE
-```
-curl -X 'PUT' \
-  'http://localhost:8083/kvstore/v1/resetcache' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 9808e5e0-1c5c-46be-a0c1-e2d1eb16bb10' \
+  -H 'Content-Type: application/json' \
   -d '{
-  "max_size": "1000",
-  "eviction_policy": "LRU"
+  "key": "cassandra",
+  "secret": "cassandra"
 }'
 ```
+
+#### database (key space) creation & deletion & list
+
+```json
+// Create database
+curl -X 'POST' \
+  'http://{{host_url}}:8083/kvstore/v1/databases' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -d '{
+  "db_name": "mydb"
+}'
+
+201: The database {db_name} has been created successfully.
+409: The database {db_name} already exists.
+400: The database name is invalid.
+
+// Delete database
+curl -X 'DELETE' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json'
+
+204: The database {db_name} has been deleted successfully.
+404: The database name is invalid or the database {db_name} does not exist.
+
+
+// List databases
+curl -X 'GET' \
+  'http://{{host_url}}:8083/kvstore/v1/databases' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: {{token}}'
+```
+
+#### table creation & deletion & list
+
+```json
+// Create table
+curl -X 'POST' \
+  'http://{{host_url}}:8083/kvstore/v1/databases/mydb/tables' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -d '{
+  "table_name": "mytable"
+}'
+
+// Delete table
+curl -X 'POST' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}'
+
+// List tables
+curl -X 'GET' \
+  'http://localhost:8083/kvstore/v1/mydb/tables' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: {{token}}'
+
+```
+
+#### Operations on KV
+
+```json
+// Put key-value
+curl -X 'PUT' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -d '{
+  "key": "cassandra",
+  "value": "cassandra"
+}'
+
+// Get value
+curl -X 'GET' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -d '{
+    "key": "cassandra"
+}'
+
+// Update key-value
+curl -X 'PATCH' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb/mytable' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -H 'content-type: application/json' \
+  -d '{
+    "key": "cassandra",
+    "value":  "abcde"
+}'
+
+// Delete key
+curl -X 'DELETE' \
+  'http://{{host_url}}:8083/kvstore/v1/mydb/key' \
+  -H 'accept: application/json' \
+  -H 'content-type: application/json' \
+  -H 'X-Cassandra-Token: {{token}}' \
+  -d '{
+  "key": "cassandra"
+}'
+```
+
+#### Get and Set Cache Status
+
+```json
+// get cache size, hit rate, cache max_size and current eviction policy
+curl -X 'GET' \
+	'http://{{host_url}}:8083/kvstore/v1/getcachestatus' \
+  -H 'accept: application/json' \
+  -H 'X-Cassandra-Token: {{token}}'
+
+// reseat cache and set cache size (-1=nochange) and eviction policy (policy = NOCHANGE, LRU, FIFO, RANDOM)
+curl -X 'PUT' \
+	'http://{{host_url}}:8083/kvstore/v1/resetcache' \
+	 -H 'accept: application/json' \
+   -H 'X-Cassandra-Token: {{token}}'
+	-d '{
+	 "max_size": "-1",
+   "eviction_policy": "NOCHANGE"
+}'
+
+// use micrometer for the data
+curl -X 'GET' \
+	'http://{{host_url}}:8083/q/metrics/' \
+	 -H 'accept: application/json' \
+   -H 'X-Cassandra-Token: {{token}}'
+```
+Use `benchmark/nosqlbenchv5/metrics_analysis_tool.py` to analyze the metrics.
+
 ### Metrics API 
 
 To export metrics, 
@@ -87,133 +200,11 @@ GET kvstore/v1/metrics
 params:
 dir optional directory to store the results of metrics in
 
+### Eviction Policy
 
-### CQL 测试语法
+We have four eviction policy for our cache layer:
 
-+ 开启cqlsh：`docker exec -it cass40-stargate_cassandra-1_1 cqlsh`
-+ 看keyspaces: `describe keyspaces`
-+ 看table: `SELECT * FROM "kvdb0"."kvtable"`
-
-### Docker 语法
-
-+ 查看docker image: `docker images / docker image ls`
-+ 查看正在运行的docker containe：`docker container ls`
-+ 查看某container的port: `docker port <container-name>`
-
-### HTTP 测试
-
-```
-//get token
-curl -X 'POST' \
-  'http://localhost:8081/v1/auth/token/generate' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "key": "cassandra",
-  "secret": "cassandra"
-}'
-
-// create db
-curl -X 'POST' \
-  'http://localhost:8083/kvstore/v1/databases' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 15e6ec23-4e03-4139-9d42-7baeb5d1f959' \
-  -d '{
-  "db_name": "mydb"
-}'
-201: The database {db_name}  has been created successfully.
-409: The database {db_name} already exists.
-400: The database name is invalid.
-
-// delete db
-curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/mydb' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json'
-204: The database {db_name} has been deleted successfully.
-404: The database name is invalid. or The database {db_name} does not exist.
-
-// create table
-curl -X 'POST' \
-  'http://localhost:8083/kvstore/v1/databases/mydb/tables' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 15e6ec23-4e03-4139-9d42-7baeb5d1f959' \
-  -d '{
-  "table_name": "mytable"
-}'
-
-// delete table
-curl -X 'POST' \
-  'http://localhost:8083/kvstore/v1/mydb/mytable' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
-
-// list databases
-curl -X 'GET' \
-  'http://localhost:8083/kvstore/v1/databases' \
-  -H 'accept: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
-
-// list tables
-curl -X 'GET' \
-  'http://localhost:8083/kvstore/v1/mydb/tables' \
-  -H 'accept: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0'
-
-
-// put kv
-curl -X 'PUT' \
-  'http://localhost:8083/kvstore/v1/mydb/mytable' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
-  -d '{
-  "key": "cassandra",
-  "value": "cassandra"
-}'
-
-// get v
-curl -X 'GET' \
-  'http://localhost:8083/kvstore/v1/mydb/mytable' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
-  -d '{
-    "key": "cassandra"
-}'
-
-// update kv
-curl -X 'PATCH' \
-  'http://localhost:8083/kvstore/v1/mydb/mytable' \
-  -H 'accept: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
-  -H 'content-type: application/json' \
-  -d '{
-    "key": "cassandra",
-    "value":  "abcde"
-}'
-
-curl -X 'DELETE' \
-  'http://localhost:8083/kvstore/v1/mydb/key' \
-  -H 'accept: application/json' \
-  -H 'content-type: application/json' \
-  -H 'X-Cassandra-Token: 0628ea4b-86ea-4277-a7ef-b288fb991ee0' \
-  -d '{
-  "key": "cassandra"
-}'
-```
-
-+ cassandra存储原理(简)：
-  + user create DB: new keyspace named **kvdb{db_id}** (db_id start from 0)
-  + Only one table in each keyspace named **kvtable**
-  + Two text columns: key(partition key), value
-+ Done:
-  + Authentication, API implementation
-+ Todo:
-  + Response and Exception Format
-  + Caching layer implementation
-  + Replication Model implementation
++ No cache
++ LRU
++ FIFO
++ Random

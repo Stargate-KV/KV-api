@@ -26,8 +26,10 @@ import java.util.stream.Collectors;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
+// Class KVCassandra: A class to handle key-value operations with Cassandra using Stargate APIs.
 @ApplicationScoped
 public class KVCassandra {
+  // Constants for table names and schema
   private static final String TABLE_NAME = "table_name";
   private static final String SYSTEM_SCHEMA = "system_schema";
   private static final String TABLES = "tables";
@@ -40,9 +42,15 @@ public class KVCassandra {
           KVDataType.SETINT, KVDataType.INT,
           KVDataType.SETDOUBLE, KVDataType.DOUBLE,
           KVDataType.SETTEXT, KVDataType.TEXT);
+
+  // Dependency injection of StargateBridgeClient
   @Inject StargateBridgeClient bridge;
   List<Column> columns = new ArrayList<>();
 
+  /**
+   * Constructs a KVCassandra instance.
+   * Initializes the columns list with various data types for Cassandra table.
+   */
   public KVCassandra() {
     ImmutableColumn.Builder val_column = ImmutableColumn.builder().name("value_text").type("text");
     columns.add(val_column.build());
@@ -59,6 +67,12 @@ public class KVCassandra {
     columns.add(ImmutableColumn.builder().name("value_set_double").type("set<double>").build());
   }
 
+  /**
+   * Creates a new keyspace in the database.
+   *
+   * @param keyspace_name The name of the keyspace to be created.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse createKeyspace(String keyspace_name) {
     // create keyspace
     QueryOuterClass.Query query_create =
@@ -71,7 +85,7 @@ public class KVCassandra {
     try {
       bridge.executeQuery(query_create);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, null);
+      return _handleStatusRuntimeException(ex, keyspace_name, null);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -79,12 +93,18 @@ public class KVCassandra {
         201, "The database '" + keyspace_name + "' has been created successfully.");
   }
 
+  /**
+   * Deletes an existing keyspace from the database.
+   *
+   * @param keyspace_name The name of the keyspace to be deleted.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse deleteKeyspace(String keyspace_name) {
     QueryOuterClass.Query query = new QueryBuilder().drop().keyspace(keyspace_name).build();
     try {
       bridge.executeQuery(query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, null);
+      return _handleStatusRuntimeException(ex, keyspace_name, null);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -92,6 +112,13 @@ public class KVCassandra {
         200, "The database '" + keyspace_name + "' has been deleted successfully.");
   }
 
+  /**
+   * Creates a new table within a specified keyspace.
+   *
+   * @param keyspace_name The name of the keyspace where the table will be created.
+   * @param table_name The name of the table to be created.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse createTable(String keyspace_name, String table_name) {
     // build a partition key column and a value column
     ImmutableColumn.Builder key_column = ImmutableColumn.builder().name("key").type("text");
@@ -108,26 +135,37 @@ public class KVCassandra {
     try {
       bridge.executeQuery(query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
     return new KVResponse(201, "The table '" + table_name + "' has been created successfully.");
   }
-
+  /**
+   * Deletes a table from a specified keyspace.
+   *
+   * @param keyspace_name The name of the keyspace containing the table.
+   * @param table_name The name of the table to be deleted.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse deleteTable(String keyspace_name, String table_name) {
     QueryOuterClass.Query query =
         new QueryBuilder().drop().table(keyspace_name, table_name).build();
     try {
       bridge.executeQuery(query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
     return new KVResponse(200, "The table '" + table_name + "' has been deleted successfully.");
   }
 
+  /**
+   * Lists all keyspaces in the database.
+   *
+   * @return KVResponse containing the status code, message, and list of keyspaces.
+   */
   public KVResponse listKeyspaces() {
     // list all keyspaces in the database
     QueryBuilder.QueryBuilder__21 queryBuilder =
@@ -136,7 +174,7 @@ public class KVCassandra {
     try {
       response = bridge.executeQuery(queryBuilder.build());
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, null, null);
+      return _handleStatusRuntimeException(ex, null, null);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -149,6 +187,12 @@ public class KVCassandra {
     return new KVResponse(200, "{\"keyspaces\": [" + String.join(", ", allKeyspaceNames) + "]}");
   }
 
+  /**
+   * Lists all tables in a specific keyspace.
+   *
+   * @param keyspace_name The name of the keyspace whose tables are to be listed.
+   * @return KVResponse containing the status code, message, and list of tables in the keyspace.
+   */
   public KVResponse listTables(String keyspace_name) {
     // check if the keyspace exists
     QueryOuterClass.Query query_check =
@@ -176,13 +220,13 @@ public class KVCassandra {
     try {
       // check if the keyspace exists
       rows = bridge.executeQuery(query_check).getResultSet().getRowsList();
-      // if keyspaces exists, return 409
+      // if keyspaces not exists, return 404
       if (rows.size() == 0) {
         return new KVResponse(404, "The database '" + keyspace_name + "' not exists.");
       }
       response = bridge.executeQuery(queryBuilder.build());
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, null);
+      return _handleStatusRuntimeException(ex, keyspace_name, null);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -195,7 +239,15 @@ public class KVCassandra {
     return new KVResponse(200, "{\"tables\": [" + String.join(",", allTableNames) + "]}");
   }
 
-  public boolean isKeyInTable(String keyspace_name, String table_name, String key)
+  /**
+   * Checks if a key exists in a table. Helper function for putKeyVal, getVal, updateVal, and deleteKey.
+   *
+   * @param keyspace_name The name of the keyspace containing the table.
+   * @param table_name The name of the table to be checked.
+   * @param key The key to be checked.
+   * @return KVResponse containing the status code and message of the operation.
+   */
+  public boolean _isKeyInTable(String keyspace_name, String table_name, String key)
       throws Exception {
     // check if the key exists in the table
     QueryOuterClass.Query query =
@@ -209,8 +261,14 @@ public class KVCassandra {
     rows = bridge.executeQuery(query).getResultSet().getRowsList();
     return rows.size() != 0; // true, row
   }
-
-  private Value getValue(JsonNode value, KVDataType type) {
+  
+  /**
+   * Get the value from JsonNode using the KVDataType. Helper function.
+   * @param value The JsonNode value.
+   * @param type The KVDataType.
+   * @return The Value.
+   */
+  private Value _getValue(JsonNode value, KVDataType type) {
     Value res = null;
     switch (type) {
       case INT:
@@ -226,6 +284,16 @@ public class KVCassandra {
     return res;
   }
 
+  /**
+   * Inserts a key-value pair into a specified table.
+   *
+   * @param keyspace_name The name of the keyspace.
+   * @param table_name The name of the table.
+   * @param key The key to be inserted.
+   * @param value The value to be associated with the key.
+   * @param type The data type of the value.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse putKeyVal(
       String keyspace_name, String table_name, String key, JsonNode value, KVDataType type) {
     QueryBuilder__18 queryBuilder =
@@ -238,13 +306,13 @@ public class KVCassandra {
       case INT:
       case TEXT:
       case DOUBLE:
-        query = queryBuilder.value("value_" + type.label, getValue(value, type)).build();
+        query = queryBuilder.value("value_" + type.label, _getValue(value, type)).build();
         break;
       default:
         Builder collectionBuilder = QueryOuterClass.Value.newBuilder().getCollectionBuilder();
 
         for (JsonNode node : (ArrayNode) value) {
-          collectionBuilder.addElements(getValue(node, DATAMAP.get(type)));
+          collectionBuilder.addElements(_getValue(node, DATAMAP.get(type)));
         }
         Collection collection = collectionBuilder.build();
         Value val = QueryOuterClass.Value.newBuilder().setCollection(collection).build();
@@ -256,12 +324,12 @@ public class KVCassandra {
     }
 
     try {
-      if (isKeyInTable(keyspace_name, table_name, key)) {
+      if (_isKeyInTable(keyspace_name, table_name, key)) {
         return new KVResponse(409, "The key '" + key + "' already exists.");
       }
       bridge.executeQuery(query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -269,6 +337,14 @@ public class KVCassandra {
         201, "The key value pair '" + key + ":" + value + "' has been inserted successfully.");
   }
 
+  /**
+   * Retrieves a value based on a key from a specified table.
+   *
+   * @param keyspace_name The name of the keyspace.
+   * @param table_name The name of the table.
+   * @param key The key whose value is to be retrieved.
+   * @return KVResponse containing the status code, message, and the retrieved value.
+   */
   public KVResponse getVal(String keyspace_name, String table_name, String key) {
     // select the value from the table where key = key
     QueryOuterClass.Query query =
@@ -288,7 +364,7 @@ public class KVCassandra {
             404, "The key '" + key + "' cannot be found in the current database.");
       }
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -343,6 +419,16 @@ public class KVCassandra {
     return new KVResponse(body);
   }
 
+  /**
+   * Updates a value for a specific key in a table. If the key does not exist, insert the key-value pair.
+   *
+   * @param keyspace_name The name of the keyspace.
+   * @param table_name The name of the table.
+   * @param key The key whose value is to be updated.
+   * @param value The new value to be associated with the key.
+   * @param type The data type of the value.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse updateVal(
       String keyspace_name, String table_name, String key, JsonNode value, KVDataType type) {
     // update the value in the table where key = key, if it exists, otherwise return
@@ -363,13 +449,13 @@ public class KVCassandra {
       case INT:
       case TEXT:
       case DOUBLE:
-        query = queryBuilder.value("value_" + type.label, getValue(value, type));
+        query = queryBuilder.value("value_" + type.label, _getValue(value, type));
         break;
       default:
         Builder collectionBuilder = QueryOuterClass.Value.newBuilder().getCollectionBuilder();
 
         for (JsonNode node : (ArrayNode) value) {
-          collectionBuilder.addElements(getValue(node, DATAMAP.get(type)));
+          collectionBuilder.addElements(_getValue(node, DATAMAP.get(type)));
         }
         Collection collection = collectionBuilder.build();
         Value val = QueryOuterClass.Value.newBuilder().setCollection(collection).build();
@@ -392,7 +478,7 @@ public class KVCassandra {
       // }
       bridge.executeQuery(final_query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
@@ -400,6 +486,14 @@ public class KVCassandra {
         200, "The key value pair '" + key + ":" + value + "' has been updated successfully.");
   }
 
+  /**
+   * Deletes a key-value pair from a specified table.
+   *
+   * @param keyspace_name The name of the keyspace.
+   * @param table_name The name of the table.
+   * @param key The key to be deleted.
+   * @return KVResponse containing the status code and message of the operation.
+   */
   public KVResponse deleteKey(String keyspace_name, String table_name, String key) {
     // delete the row from the table where key = key
     QueryOuterClass.Query query =
@@ -409,20 +503,28 @@ public class KVCassandra {
             .where("key", Predicate.EQ, QueryOuterClass.Value.newBuilder().setString(key).build())
             .build();
     try {
-      if (!isKeyInTable(keyspace_name, table_name, key)) {
+      if (!_isKeyInTable(keyspace_name, table_name, key)) {
         return new KVResponse(
             404, "The key '" + key + "' cannot be found in the current database.");
       }
       bridge.executeQuery(query);
     } catch (StatusRuntimeException ex) {
-      return handleStatusRuntimeException(ex, keyspace_name, table_name);
+      return _handleStatusRuntimeException(ex, keyspace_name, table_name);
     } catch (Exception ex) {
       return new KVResponse(500, ex.getMessage());
     }
     return new KVResponse(200, "The key '" + key + "' has been deleted successfully.");
   }
 
-  private KVResponse handleStatusRuntimeException(
+  /**
+   * Handles StatusRuntimeExceptions from StargateBridgeClient. Helper function.
+   *
+   * @param ex The StatusRuntimeException.
+   * @param keyspace_name The name of the keyspace.
+   * @param table_name The name of the table.
+   * @return KVResponse containing the status code and message of the operation.
+   */
+  private KVResponse _handleStatusRuntimeException(
       StatusRuntimeException ex, String keyspace_name, String table_name) {
     System.out.println("got message:" + ex.getMessage());
     Status.Code code = ex.getStatus().getCode();

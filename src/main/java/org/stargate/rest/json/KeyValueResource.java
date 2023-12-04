@@ -15,30 +15,29 @@ import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 
-
-
-
-
-// add authorization
+/**
+ * Class KeyValueResource - Handles REST API requests for key-value store operations.
+ */
 @ApplicationScoped
-@SecurityRequirement(name = "Token")
+@SecurityRequirement(name = "Token") // add authorization
 @Path("/kvstore/v1")
 public class KeyValueResource {
   @Inject StargateBridgeClient bridge;
+  // apis to interact with cassandra database by stargate bridge
   @Inject KVCassandra kvcassandra;
-  // @Inject KVCache kvcache;
+  // apis to interact with cache
   @Inject KVCache kvcache;
   ObjectMapper objectMapper = new ObjectMapper();
   
   public KeyValueResource() {}
-
   
-  /** 
-   * create db
-   * @param db_name_json
-   * @return
-   * @throws KvstoreException
-   * @throws JsonProcessingException
+  /**
+   * Creates a new database (keyspace) based on the provided JSON input.
+   *
+   * @param db_name_json JSON string containing the database name.
+   * @return KVResponse indicating the result of the database creation operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
+   * @throws JsonProcessingException If there's an error in processing the JSON input.
    */
   @POST
   @Path("databases")
@@ -57,10 +56,11 @@ public class KeyValueResource {
   }
 
   /**
-   * delete db
-   * @param db_name
-   * @return
-   * @throws KvstoreException
+   * Deletes a database (keyspace) based on the provided database name.
+   *
+   * @param db_name The name of the database to be deleted.
+   * @return KVResponse indicating the result of the database deletion operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @DELETE
   @Path("{db_name}")
@@ -75,12 +75,13 @@ public class KeyValueResource {
   }
 
   /**
-   * create table
-   * @param db_name
-   * @param table_name_json
-   * @return
-   * @throws KvstoreException
-   * @throws JsonProcessingException
+   * Creates a new table within a specified database.
+   *
+   * @param db_name The name of the database where the table will be created.
+   * @param table_name_json JSON string containing the table name.
+   * @return KVResponse indicating the result of the table creation operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
+   * @throws JsonProcessingException If there's an error in processing the JSON input.
    */
   @POST
   @Path("databases/{db_name}/tables")
@@ -101,12 +102,13 @@ public class KeyValueResource {
   }
 
   /**
-   * delete table
-   * @param db_name
-   * @param table_name
-   * @return
-   * @throws KvstoreException
-   */
+    * Deletes a table within a specified database.
+    *
+    * @param db_name The name of the database where the table will be deleted.
+    * @param table_name The name of the table to be deleted.
+    * @return KVResponse indicating the result of the table deletion operation.
+    * @throws KvstoreException If there's an issue in the key-value store operation.
+    */
   @DELETE
   @Path("{db_name}/{table_name}")
   public KVResponse deleteTable(
@@ -121,9 +123,10 @@ public class KeyValueResource {
   }
 
   /**
-   * get all the current databases
-   * @return
-   * @throws KvstoreException
+   * Lists all the current databases (keyspaces).
+   *
+   * @return KVResponse containing the list of databases.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @GET
   @Path("databases")
@@ -134,10 +137,11 @@ public class KeyValueResource {
   }
 
   /**
-   * get all the current tables
-   * @param db_name
-   * @return
-   * @throws KvstoreException
+   * Lists all the current tables in a specified database.
+   *
+   * @param db_name The name of the database.
+   * @return KVResponse containing the list of tables in the specified database.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @GET
   @Path("{db_name}/tables")
@@ -150,8 +154,13 @@ public class KeyValueResource {
     return response;
   }
   
-  private boolean checkType(JsonNode node, KVDataType type) {
-	
+  /**
+   * Helper function to check if the type is valid
+   * @param node
+   * @param type
+   * @return
+   */
+  private boolean _checkType(JsonNode node, KVDataType type) {
   	switch(type) {
   	case INT:
   		return node.isIntegralNumber();
@@ -164,7 +173,15 @@ public class KeyValueResource {
   	}
 
   }
-  private KVDataType getTypeForRequest(JsonNode jsonNode, JsonNode value) throws KvstoreException {
+
+  /**
+   * Helper function to get the type for the request
+   * @param jsonNode
+   * @param value
+   * @return
+   * @throws KvstoreException
+   */
+  private KVDataType _getTypeForRequest(JsonNode jsonNode, JsonNode value) throws KvstoreException {
 	  KVDataType type = null;
 	  if (jsonNode.has("type")) {
 	    	String type_str = jsonNode.get("type").asText().toLowerCase().replaceAll("\\s+","");
@@ -173,14 +190,13 @@ public class KeyValueResource {
 	    	}catch(IllegalArgumentException ex) {
 	    		 throw new KvstoreException(
 		          	          400, "Bad request, must provide valid type, value name.");
-			}
-	    	
+			}	
 
 	    	switch(type) {
 	    	case INT:
 	    	case DOUBLE:
 	    	case TEXT:
-	    		if (!checkType(value, type)) {
+	    		if (!_checkType(value, type)) {
 	   	    		 throw new KvstoreException(
 	   	          	          400, "Bad request, must provide valid type, value name.");
 	   			}
@@ -191,7 +207,7 @@ public class KeyValueResource {
 	   	          	          400, "Bad request, must provide valid type, value name.");
 	   			}
 	    		for (JsonNode node: (ArrayNode)value) {
-	    			if (!checkType(node, KVCassandra.DATAMAP.get(type))){
+	    			if (!_checkType(node, KVCassandra.DATAMAP.get(type))){
 	    				 throw new KvstoreException(
 	      	          	          400, "Bad request, must provide valid type, value name.");
 	    			}
@@ -258,14 +274,15 @@ public class KeyValueResource {
   }
 
   /**
-   * put key value pair into table
-   * @param db_name
-   * @param table_name
-   * @param kvPair
-   * @return
-   * @throws KvstoreException
- * @throws JsonProcessingException 
- * @throws JsonMappingException 
+   * Puts a key-value pair into a specified table.
+   *
+   * @param db_name The name of the database.
+   * @param table_name The name of the table.
+   * @param json_body JSON string containing the key-value pair to be inserted.
+   * @return KVResponse indicating the result of the put operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
+   * @throws JsonMappingException If there's an error in mapping the JSON input.
+   * @throws JsonProcessingException If there's an error in processing the JSON input.
    */
   @PUT
   @Path("{db_name}/{table_name}")
@@ -292,7 +309,7 @@ public class KeyValueResource {
     JsonNode value = jsonNode.get("value");
 
    
-    KVDataType type = getTypeForRequest(jsonNode, value);
+    KVDataType type = _getTypeForRequest(jsonNode, value);
     
     JsonNode old_value = kvcache.get(key, db_name, table_name);
     if(old_value != null) {
@@ -314,17 +331,17 @@ public class KeyValueResource {
         kvcache.put(key, old_value_from_cassandra, db_name, table_name, old_response.body.type);
       }
     }
-
     return response;
   }
 
   /**
-   * get the current value of the key
-   * @param db_name
-   * @param table_name
-   * @param kvPair
-   * @return
-   * @throws KvstoreException
+   * Retrieves the current value of a key from a specified table.
+   *
+   * @param db_name The name of the database.
+   * @param table_name The name of the table.
+   * @param kvPair The key-value pair object containing the key to retrieve.
+   * @return KVResponse containing the value associated with the key.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @GET
   @Path("{db_name}/{table_name}")
@@ -356,14 +373,15 @@ public class KeyValueResource {
   }
 
   /**
-   * update the current key value pair
-   * @param db_name
-   * @param table_name
-   * @param kvPair
-   * @return
-   * @throws KvstoreException
- * @throws JsonProcessingException 
- * @throws JsonMappingException 
+   * Updates the current key-value pair in a specified table.
+   *
+   * @param db_name The name of the database.
+   * @param table_name The name of the table.
+   * @param json_body JSON string containing the key-value pair to be updated.
+   * @return KVResponse indicating the result of the update operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
+   * @throws JsonMappingException If there's an error in mapping the JSON input.
+   * @throws JsonProcessingException If there's an error in processing the JSON input.
    */
   @PATCH
   @Path("{db_name}/{table_name}")
@@ -390,7 +408,7 @@ public class KeyValueResource {
 	    JsonNode value = jsonNode.get("value");
 
 	   
-	    KVDataType type = getTypeForRequest(jsonNode, value);
+	    KVDataType type = _getTypeForRequest(jsonNode, value);
 
     // first update to cassandra to achieve consistency
     KVResponse response = kvcassandra.updateVal(db_name, table_name, key, value, type);
@@ -401,12 +419,13 @@ public class KeyValueResource {
   }
 
   /**
-   * delete the key from the table
-   * @param db_name
-   * @param table_name
-   * @param kvPair
-   * @return
-   * @throws KvstoreException
+   * Deletes a key from a specified table.
+   *
+   * @param db_name The name of the database.
+   * @param table_name The name of the table.
+   * @param kvPair The key-value pair object containing the key to be deleted.
+   * @return KVResponse indicating the result of the delete operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @DELETE
   @Path("{db_name}/{table_name}/key")
