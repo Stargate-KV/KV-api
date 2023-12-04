@@ -4,6 +4,10 @@ import org.stargate.rest.json.KVDataType;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+/**
+ * FIFOCacheSlot - Represents a single slot in the FIFOCache.
+ * It encapsulates a key-value pair along with additional metadata required for cache management.
+ */
 public class FIFOCacheSlot {
   private String key;
   public JsonNode value;

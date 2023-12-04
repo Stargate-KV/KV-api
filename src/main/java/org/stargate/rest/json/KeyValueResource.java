@@ -454,18 +454,13 @@ public class KeyValueResource {
     return response;
   }
 
-  // new APIs for cache
-  // http://{{host_url}}:8083/resetcache PUT, 
-  // {
-  //   "max_size": "1000",
-  //   "eviction_policy": "FIFO"
-  // } 
-  // need to validate max_size is a positive integer and eviction_policy is FIFO or RANDOM
   /**
-   * @param json_body
-   * @return
-   * @throws KvstoreException
-   * @throws JsonProcessingException
+   * Resets the cache based on the provided JSON input specifying cache configuration.
+   *
+   * @param json_body JSON string containing cache configuration parameters.
+   * @return KVResponse indicating the result of the cache reset operation.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
+   * @throws JsonProcessingException If there's an error in processing the JSON input.
    */
   @PUT
   @Path("resetcache")
@@ -510,11 +505,11 @@ public class KeyValueResource {
     return new KVResponse(200, "Cache reset successfully. Cache status: " + kvcache.getCacheInfo());
   }
 
-  // http://{{host_url}}:8083/getcachestatus
-  // get function, get the status of the cache
   /**
-   * @return
-   * @throws KvstoreException
+   * Retrieves the current status of the cache.
+   *
+   * @return KVResponse containing the current cache status.
+   * @throws KvstoreException If there's an issue in the key-value store operation.
    */
   @GET
   @Path("getcachestatus")

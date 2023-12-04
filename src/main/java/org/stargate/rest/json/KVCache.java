@@ -10,6 +10,7 @@ import javax.enterprise.context.ApplicationScoped;
 import org.stargate.rest.json.Cache.FIFOCache;
 import org.stargate.rest.json.Cache.RandomCache;
 import org.stargate.rest.json.Cache.LRUCache;
+
 // define enum of EvcitionPolicy, FIFO, RANDOM and NONE
 enum EvictionPolicy {
   NONE,
@@ -18,24 +19,41 @@ enum EvictionPolicy {
   LRU
 }
 
+/**
+ * Class KVCache - Manages caching for key-value pairs with support for different eviction policies.
+ */
 @ApplicationScoped
 public class KVCache {
+  // Maximum size for the cache
   private int maxSize = 1000;
 
-  // define FIFO Cache and Random Cache inside KVCache
+  // Cache implementations based on different eviction policies
   private FIFOCache fifoCache;
   private RandomCache randomCache;
   private LRUCache lruCache;
-  // set default eviction policy to FIFO
+
+  // Current eviction policy, default is FIFO
   private EvictionPolicy evictionPolicy = EvictionPolicy.FIFO;
 
-  // make sure no concurrent resetCache and get/put/delete
+  // ReadWriteLock to ensure thread-safe operations on the cache
   private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+  /**
+   * Constructor for KVCache.
+   * Initializes the cache with default size and eviction policy.
+   */
   public KVCache() {
     resetCache(this.maxSize, this.evictionPolicy);
   }
 
+  /**
+   * Retrieves a value from the cache based on the key, keyspace, and table.
+   *
+   * @param key The key whose associated value is to be returned.
+   * @param keyspace The keyspace of the key.
+   * @param table The table of the key.
+   * @return JsonNode The value associated with the specified key, or null if no value is found.
+   */
   public JsonNode get(String key, String keyspace, String table) { // get function
     lock.readLock().lock();
     try {
@@ -58,7 +76,15 @@ public class KVCache {
     }
   }
 
-  // return whether the key exists in cache
+
+  /**
+   * Deletes a key from the cache.
+   *
+   * @param key The key to be deleted.
+   * @param keyspace The keyspace of the key.
+   * @param table The table of the key.
+   * @return boolean True if the key was deleted, false otherwise.
+   */
   public boolean delete(String key, String keyspace, String table) {
     lock.readLock().lock();
     try {
@@ -80,6 +106,15 @@ public class KVCache {
     }
   }
 
+  /**
+   * Puts a key-value pair into the cache.
+   *
+   * @param key The key with which the specified value is to be associated.
+   * @param value The value to be associated with the specified key.
+   * @param keyspace The keyspace of the key.
+   * @param table The table of the key.
+   * @param valueType The data type of the value.
+   */
   public void put(String key, JsonNode value, String keyspace, String table, KVDataType valueType) {
     lock.readLock().lock();
     try {
@@ -103,6 +138,13 @@ public class KVCache {
     }
   }
 
+  /**
+   * Resets the cache with a new size and eviction policy.
+   * If maxSize is -1, the cache size remains unchanged. If evictionPolicy is null, the policy remains unchanged.
+   *
+   * @param maxSize The new maximum size of the cache.
+   * @param evictionPolicy The new eviction policy for the cache.
+   */
   public void resetCache(int maxSize, EvictionPolicy evictionPolicy) {
     if(maxSize == -1) { // clear the cache, remain the same maxSize
       maxSize = this.maxSize;
@@ -144,6 +186,11 @@ public class KVCache {
     }
   }
 
+  /**
+   * Retrieves information about the current cache, such as its size and eviction policy.
+   *
+   * @return String Information about the cache.
+   */
   public String getCacheInfo() {
     lock.readLock().lock();
     try {
