@@ -32,8 +32,9 @@ public class KeyValueResource {
   
   public KeyValueResource() {}
 
-  // create and delete databases
-  /**
+  
+  /** 
+   * create db
    * @param db_name_json
    * @return
    * @throws KvstoreException
@@ -56,6 +57,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete db
    * @param db_name
    * @return
    * @throws KvstoreException
@@ -73,6 +75,7 @@ public class KeyValueResource {
   }
 
   /**
+   * create table
    * @param db_name
    * @param table_name_json
    * @return
@@ -98,6 +101,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete table
    * @param db_name
    * @param table_name
    * @return
@@ -117,6 +121,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get all the current databases
    * @return
    * @throws KvstoreException
    */
@@ -129,6 +134,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get all the current tables
    * @param db_name
    * @return
    * @throws KvstoreException
@@ -250,7 +256,9 @@ public class KeyValueResource {
 	    }
 	  return type;
   }
+
   /**
+   * put key value pair into table
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -311,6 +319,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get the current value of the key
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -347,6 +356,7 @@ public class KeyValueResource {
   }
 
   /**
+   * update the current key value pair
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -391,6 +401,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete the key from the table
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -414,13 +425,9 @@ public class KeyValueResource {
     }
     KVResponse response = kvcassandra.deleteKey(db_name, table_name, kvPair.key);
     if (response.status_code==200) {
-      // KVCacheSlot slot = kvcache.read(kvPair.key, db_name, table_name);
-      // JsonNode value = kvcache2.get(kvPair.key, db_name, table_name);
       JsonNode value = kvcache.get(kvPair.key, db_name, table_name);
-      // if (slot != null) {
       if (value != null) {
-        // kvcache.delete(kvPair.key, db_name, table_name);
-        // kvcache2.delete(kvPair.key, db_name, table_name);
+
         kvcache.delete(kvPair.key, db_name, table_name);
       }
     }
@@ -498,11 +505,4 @@ public class KeyValueResource {
     return new KVResponse(200, response);
   }
 
-  @GET
-  @Path("helloworld")
-  @Produces(MediaType.APPLICATION_JSON)
-  @Consumes(MediaType.APPLICATION_JSON)
-  public KVResponse getKeyVal() throws KvstoreException {
-    return new KVResponse(200, "Hello World!");
-  }
 }

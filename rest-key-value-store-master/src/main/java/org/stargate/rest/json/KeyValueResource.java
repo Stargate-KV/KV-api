@@ -42,9 +42,11 @@ public class KeyValueResource {
    * Constructor for KeyValueResource initializes servers, consistent hashing, and cache reset configuration.
    */
   public KeyValueResource() {
+    
     servers =
         new String[] {"http://host.docker.internal:8086", "http://host.docker.internal:8087", "http://host.docker.internal:8088"};
 
+    // TODO: store the hashing between key value and servers in persistent storage
     consistentHashing = new ConsistentHashing(servers.length);
     for (String s : servers) {
       consistentHashing.addServer(s);
@@ -55,8 +57,8 @@ public class KeyValueResource {
     resetCache = json.toString();
   }
 
-  // create and delete databases
   /**
+   * create db
    * @param db_name_json
    * @return
    * @throws KvstoreException
@@ -89,7 +91,6 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -100,6 +101,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete db
    * @param db_name
    * @return
    * @throws KvstoreException
@@ -134,7 +136,6 @@ public class KeyValueResource {
       }
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -145,6 +146,7 @@ public class KeyValueResource {
   }
 
   /**
+   * create a table 
    * @param db_name
    * @param table_name_json
    * @return
@@ -173,7 +175,6 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -184,6 +185,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete a table
    * @param db_name
    * @param table_name
    * @return
@@ -221,7 +223,6 @@ public class KeyValueResource {
       }
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -232,6 +233,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get all the current databases 
    * @return
    * @throws KvstoreException
    */
@@ -250,7 +252,6 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -261,6 +262,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get all the current tables 
    * @param db_name
    * @return
    * @throws KvstoreException
@@ -283,7 +285,7 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
+      
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -294,6 +296,7 @@ public class KeyValueResource {
   }
 
   /**
+   * put key value pair into table
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -332,7 +335,7 @@ public class KeyValueResource {
 	      HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
+      
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -343,6 +346,7 @@ public class KeyValueResource {
   }
 
   /**
+   * get the current value of the key 
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -378,7 +382,7 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
+      
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -389,6 +393,7 @@ public class KeyValueResource {
   }
 
   /**
+   * update a key value pair in the table
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -426,7 +431,7 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
+      
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -437,6 +442,7 @@ public class KeyValueResource {
   }
 
   /**
+   * delete a key from the table
    * @param db_name
    * @param table_name
    * @param kvPair
@@ -472,7 +478,7 @@ public class KeyValueResource {
           HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
       return Response.status(response.statusCode()).entity(response.body()).build();
     } catch (URISyntaxException e1) {
-      // TODO Auto-generated catch block
+      
       e1.printStackTrace();
     } catch (IOException e) {
       e.printStackTrace();
@@ -482,6 +488,9 @@ public class KeyValueResource {
     return null;
   }
   
+  /**
+   * reset the cache of slave servers
+   */
   @PUT
   @Path("resetcache")
   @Produces(MediaType.APPLICATION_JSON)
@@ -502,7 +511,7 @@ public class KeyValueResource {
 		  }
 	      return Response.ok().build();
 	    } catch (URISyntaxException e1) {
-	      // TODO Auto-generated catch block
+	      
 	      e1.printStackTrace();
 	    } catch (IOException e) {
 	      e.printStackTrace();
@@ -512,7 +521,9 @@ public class KeyValueResource {
 	    return null;
   }
   
-  
+  /**
+   * get the current cache status of all the slave servers
+   */
   @GET
   @Path("getcachestatus")
   @Produces(MediaType.APPLICATION_JSON)
@@ -533,7 +544,7 @@ public class KeyValueResource {
 		  
 	      return Response.status(Response.Status.OK).entity(String.join("|", res)).build();
 	    } catch (URISyntaxException e1) {
-	      // TODO Auto-generated catch block
+	      
 	      e1.printStackTrace();
 	    } catch (IOException e) {
 	      e.printStackTrace();
@@ -543,6 +554,7 @@ public class KeyValueResource {
 	    return null;
   }
   
+  // get the metrics and store them in a directory from all the slave servers
   @GET
   @Path("metrics")
   public Response getMetrics(
@@ -556,7 +568,7 @@ public class KeyValueResource {
 		    }
 
 		    File directory = new File(dir);
-        
+
 		    if (! directory.exists()){
            Files.createDirectory(directory.toPath());
 		    }
@@ -578,7 +590,7 @@ public class KeyValueResource {
 
 	      return Response.status(Response.Status.OK).build();
 	    } catch (URISyntaxException e1) {
-	      // TODO Auto-generated catch block
+	      
 	      e1.printStackTrace();
 	    } catch (IOException e) {
 	      e.printStackTrace();
