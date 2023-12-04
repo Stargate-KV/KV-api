@@ -1,3 +1,7 @@
+/**
+ * KeyValueResource is a JAX-RS resource class providing RESTful endpoints for key-value store operations.
+ */
+
 package org.stargate.rest.json;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,6 +37,10 @@ public class KeyValueResource {
   String[] servers;
   ObjectMapper objectMapper = new ObjectMapper();
   String resetCache;
+
+  /**
+   * Constructor for KeyValueResource initializes servers, consistent hashing, and cache reset configuration.
+   */
   public KeyValueResource() {
     servers =
         new String[] {"http://host.docker.internal:8086", "http://host.docker.internal:8087", "http://host.docker.internal:8088"};

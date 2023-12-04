@@ -1,3 +1,9 @@
+/*
+ * ConsistentHashing class implements a simple consistent hashing algorithm
+ * for distributing keys across a set of servers, maintaining balance even
+ * when servers are added or removed.
+ */
+
 package org.stargate.rest.json;
 import java.io.*;
 import java.util.*;
@@ -8,10 +14,18 @@ public class ConsistentHashing {
   private final SortedMap<Integer, String> ring = new TreeMap<>();
   private final int numberOfReplicas;
 
+  /**
+   * Constructs a ConsistentHashing instance with the specified number of replicas.
+   * @param numberOfReplicas The number of replicas for each server in the ring.
+   */
   public ConsistentHashing(int numberOfReplicas) {
     this.numberOfReplicas = numberOfReplicas;
   }
 
+  /**
+   * Adds a server to the consistent hashing ring by generating replicas and hashing positions.
+   * @param serverName The name or identifier of the server to be added.
+   */
   public void addServer(String serverName) {
     for (int i = 0; i < numberOfReplicas; i++) {
       int hash = (serverName + i).hashCode();
@@ -19,6 +33,10 @@ public class ConsistentHashing {
     }
   }
 
+  /**
+   * Removes a server from the consistent hashing ring by removing its replicas.
+   * @param serverName The name or identifier of the server to be removed.
+   */
   public void removeServer(String serverName) {
     for (int i = 0; i < numberOfReplicas; i++) {
       int hash = (serverName + i).hashCode();
@@ -26,6 +44,11 @@ public class ConsistentHashing {
     }
   }
 
+  /**
+   * Retrieves the server associated with a given key using consistent hashing.
+   * @param key The key used to determine the associated server.
+   * @return The server associated with the given key.
+   */
   public String getServer(String key) {
     if (ring.isEmpty()) {
       System.out.println("There is no available servers currently.");
