@@ -79,6 +79,14 @@ curl -X 'PUT' \
   "eviction_policy": "LRU"
 }'
 ```
+### Metrics API 
+
+To export metrics, 
+endpoint:
+GET kvstore/v1/metrics
+params:
+dir optional directory to store the results of metrics in
+
 
 ### CQL 测试语法
 
