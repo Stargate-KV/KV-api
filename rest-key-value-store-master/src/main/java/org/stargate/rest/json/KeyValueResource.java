@@ -7,12 +7,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.*;
 import org.json.JSONObject;
+
+import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.FileWriter; 
+import java.io.File;
+ 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
 import javax.enterprise.context.ApplicationScoped;
 import javax.json.JsonObject;
 import javax.ws.rs.*;
@@ -528,4 +534,51 @@ public class KeyValueResource {
 	    }
 	    return null;
   }
+  
+  @GET
+  @Path("metrics")
+  public Response getMetrics(
+	      String json_body, @HeaderParam(value = "X-Cassandra-Token") String token)
+	 {
+	    try {
+	    	String dir = "metrics";
+			  JsonNode jsonNode = objectMapper.readTree(json_body);
+		    if (jsonNode.has("dir")) {
+		    	dir = jsonNode.get("dir").asText();
+		    }
+
+		    File directory = new File(dir);
+        
+		    if (! directory.exists()){
+           Files.createDirectory(directory.toPath());
+		    }
+		    for(int i = 0; i < servers.length; i++) {
+		    	  String server = servers[i];
+			      HttpRequest request =
+				          HttpRequest.newBuilder()
+				              .uri(new URI(server + "/q/metrics/"))
+				              .header("X-Cassandra-Token", token)
+				              .GET()
+				              .build();
+				      HttpResponse<String> response =
+				          HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+	
+				      BufferedWriter writer = new BufferedWriter(new FileWriter(dir + "/" + "server" + i + ".txt"));
+				      writer.write(response.body());
+				      writer.close();
+		    }
+
+	      return Response.status(Response.Status.OK).build();
+	    } catch (URISyntaxException e1) {
+	      // TODO Auto-generated catch block
+	      e1.printStackTrace();
+	    } catch (IOException e) {
+	      e.printStackTrace();
+	    } catch (InterruptedException e) {
+	      e.printStackTrace();
+	    }
+	    return null;
+	  }
+  
+  
 }
